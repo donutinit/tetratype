@@ -21,8 +21,8 @@ export const DEFAULT_SETTINGS: Settings = {
   breakOnPauseMs: 1000,
   includeSpaces: false,
   detectErrors: true,
-  recentWindow: 64,
-  maxGrams: 20000,
+  recentWindow: 40,
+  maxGrams: 12000,
   minSamples: 5,
 };
 

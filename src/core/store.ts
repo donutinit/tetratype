@@ -15,8 +15,8 @@ export interface StoreOptions {
 }
 
 export const DEFAULT_STORE_OPTIONS: StoreOptions = {
-  recentWindow: 64,
-  maxGrams: 20000,
+  recentWindow: 40,
+  maxGrams: 12000,
 };
 
 /** Fraction of `maxGrams` we prune down to, so pruning is not run every write. */
