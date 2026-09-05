@@ -80,7 +80,12 @@ async function handle(message: Message): Promise<Response> {
       const { batch } = message;
       applyBatch(
         snapshot.store,
-        { samples: batch.samples, keystrokes: batch.keystrokes, runs: batch.runs },
+        {
+          samples: batch.samples,
+          keystrokes: batch.keystrokes,
+          runs: batch.runs,
+          metrics: batch.metrics,
+        },
         storeOptions(snapshot.settings),
       );
       snapshot.meta.lastCaptureAt = Date.now();

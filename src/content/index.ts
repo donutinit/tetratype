@@ -7,6 +7,7 @@
  * page for storage.
  */
 
+import { isEmpty } from '../core/metrics';
 import { DEFAULT_SETTINGS, type Settings, normalizeSettings } from '../core/settings';
 import { probeTimerResolution } from '../core/timing';
 import type { NgramSample } from '../core/types';
@@ -41,12 +42,17 @@ const capture = new Capture(settings, {
 });
 
 async function flush(): Promise<void> {
-  if (pending.length === 0 && pendingKeystrokes === 0 && pendingRuns === 0) return;
+  const metrics = capture.drainMetrics();
+  const nothingToSend =
+    pending.length === 0 && pendingKeystrokes === 0 && pendingRuns === 0 && isEmpty(metrics);
+  if (nothingToSend) return;
+
   const batch: IngestBatch = {
     samples: pending,
     keystrokes: pendingKeystrokes,
     runs: pendingRuns,
     timerResolutionMs,
+    metrics,
   };
   pending = [];
   pendingKeystrokes = 0;
