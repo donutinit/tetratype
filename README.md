@@ -305,7 +305,7 @@ The `transitions` column packs the internal breakdown into one field:
 ```bash
 bun install
 bun run dev        # rebuild dist/ on change
-bun test           # 146 tests
+bun test           # 174 tests
 bun run typecheck  # tsc --noEmit
 bun run lint       # biome
 bun run format     # biome --write
