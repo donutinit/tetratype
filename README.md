@@ -25,6 +25,7 @@ about 1.4 seconds per thousand characters.
 - [Privacy](#privacy)
 - [Storage model](#storage-model)
 - [Export formats](#export-formats)
+- [Feeding it to an LLM](#feeding-it-to-an-llm)
 - [Development](#development)
 - [Design decisions](#design-decisions)
 - [Limitations](#limitations)
@@ -301,6 +302,102 @@ ms_per_transition,excess_ms,ms_lost,impact,transitions,last_seen
 
 The `transitions` column packs the internal breakdown into one field:
 `p>a:95.10|a>r:210.40|r>a:88.20`.
+
+---
+
+## Feeding it to an LLM
+
+The CSV export is designed to be handed to a language model, which can read the transition
+breakdowns and turn them into a diagnosis and a practice wordlist you can paste straight
+back into Monkeytype.
+
+**Export it first:** in the dashboard, set **Min samples** to `20` or higher, then click
+**Export CSV**. That box is the only filter the export honours — the tab and the *Contains*
+field do not narrow it, so you always get bigrams, trigrams and tetragrams in one file.
+Raising the threshold matters: an unfiltered profile can run to thousands of rows, most of
+them too thin to mean anything, and it will crowd out the model's context for no benefit.
+
+Then paste the prompt below, replace the language, and paste the CSV underneath it.
+
+```text
+You are analysing a Tetratype export: per-n-gram keystroke latency measured from my own
+typing on Monkeytype. Tell me what to practise, and build me a practice wordlist.
+
+## The data
+
+CSV, one row per n-gram:
+
+  n                  n-gram length (2 = bigram, 3 = trigram, 4 = tetragram)
+  ngram              the literal characters
+  samples            how many times I typed it
+  median_ms          median total duration, over a window of recent observations
+  mean_ms            lifetime mean
+  p90_ms             90th percentile - my bad reps
+  min_ms / max_ms    fastest and slowest ever recorded
+  sd_ms              standard deviation
+  cv                 sd / mean. Low = reliable, high = erratic
+  ms_per_transition  median / (n - 1), so lengths are comparable
+  excess_ms          how much slower than my own baseline, per occurrence
+  ms_lost            excess_ms x samples: total time this has cost me
+  impact             ms_lost rescaled 0-100 within each n
+  transitions        per-jump means, e.g. p>a:95.10|a>r:210.40|r>a:88.20
+  last_seen          ISO timestamp of the most recent observation
+
+Timings run keydown to keydown, so a value is the time to move between the keys of the
+n-gram, never the time to press the first one. The baseline behind excess_ms is the 20th
+percentile of my own bigram speeds, so everything is measured against me, not a norm.
+
+## How to read it
+
+- Ignore rows with few samples. They are noise however bad they look.
+- Rank by impact and ms_lost, not by median. Something I type constantly and am slightly
+  slow at costs me more than something I am dreadful at but type once a week.
+- Separate two different problems:
+    - High excess_ms, low cv -> a real motor weakness. Worth drilling.
+    - High cv with a good min_ms -> I can already do it fast, just not reliably. Usually
+      rhythm, or an awkward transition I sometimes fumble rather than one I cannot make.
+- Use the transitions column. This is the point of the export. A slow tetragram is
+  normally one bad jump, not four mediocre ones - say which jump, and check whether that
+  same pair is also slow in its own bigram row.
+- Cross-check context. If a bigram is fast alone but slow inside the longer n-grams that
+  contain it, the pair is fine and the problem is what surrounds it. Say so.
+- Never state a number that is not in the data, and never guess at my layout, my fingers
+  or my hardware. Work from the rows.
+
+## What to give me
+
+1. Diagnosis, at most 10 lines. What is actually holding me back, grouped by cause
+   (same-finger jumps, awkward rolls, a weak finger, accented characters - whatever the
+   data shows). Cite the rows you read it from.
+
+2. A table of 10-15 n-grams worth practising, most valuable first. For each: samples,
+   ms_per_transition, cv, impact, which internal jump is the problem, and one line on why
+   it earned its place.
+
+3. A practice wordlist for Monkeytype:
+   - Real words in LANGUAGE. No invented words, no nonsense syllables.
+   - Every n-gram from the table appears at least four times across the list.
+   - Weight by impact: the worst offenders should recur most often.
+   - 150-200 words, lowercase, single spaces, one continuous block, no punctuation and no
+     line breaks, so I can paste it into Monkeytype custom text unchanged.
+   - Keep accents and n-tilde exactly as the words require. Do not strip them.
+   - Vary word length, and do not park every target n-gram at the start of a word.
+   - Put the wordlist in its own code block, with nothing else inside it.
+
+4. A short paragraph on what to pay attention to while drilling, and what would count as
+   improvement in a re-export.
+```
+
+Replace `LANGUAGE` with the language you actually type in — `Spanish`, `English`, or both if
+you switch between them. Ask for the accented characters to be kept; a model told only
+"Spanish" will sometimes strip them, and `ñ` and `á` are exactly the keys worth measuring.
+
+Re-export after a week of practice and give the model both files to compare. `min_ms` moving
+before `median_ms` is the normal shape of progress: the motion becomes available to you
+before it becomes reliable.
+
+The JSON export is for backup and merging profiles, not for analysis — it carries the raw
+ring buffers and is far larger with nothing extra a model can use.
 
 ---
 
