@@ -1,9 +1,11 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMetrics, recordConfusion, recordKeystroke } from '../src/core/metrics';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { applySample, createStore } from '../src/core/store';
 import type { NgramSample, ProfileStore } from '../src/core/types';
+import { barChart } from '../src/dashboard/charts';
 import { COLUMNS } from '../src/dashboard/table';
 import { STORAGE_KEYS } from '../src/shared/messages';
 
@@ -37,7 +39,35 @@ function seedStore(): ProfileStore {
       applySample(store, sample(gram, total), OPTS, 1_700_000_000_000);
   }
   store.totals = { keystrokes: 5000, runs: 900, samples: 337 };
+  store.metrics = seedMetrics();
   return store;
+}
+
+const DAY = 86_400_000;
+
+/** Accuracy data covering every panel and curve the dashboard draws. */
+function seedMetrics() {
+  const metrics = createMetrics();
+  for (let day = 0; day < 4; day++) {
+    for (let i = 0; i < 300; i++) {
+      const wrong = i < 20;
+      recordKeystroke(metrics, {
+        expected: 'r',
+        typed: wrong ? 't' : 'r',
+        wrong,
+        intervalMs: i < 150 ? 40 : 190,
+        previousExpected: 'b',
+        sessionIndex: i * 4,
+        at: (100 + day) * DAY,
+      });
+    }
+  }
+  for (let i = 0; i < 15; i++) {
+    recordConfusion(metrics, 'r', 't', { recoveryMs: 620, uncorrected: false });
+    recordConfusion(metrics, 'a', 's', { recoveryMs: 300, uncorrected: true });
+  }
+  metrics.sessions = 4;
+  return metrics;
 }
 
 /** Mounts the real dashboard markup and a minimal extension runtime. */
@@ -121,6 +151,16 @@ describe('dashboard rendering', () => {
     expect($('top-impact').textContent).toContain('br');
   });
 
+  test('names the physical shape of each n-gram', () => {
+    const shapes = rows().map((r) => r.querySelectorAll('td')[1]?.textContent ?? '');
+    expect(shapes.every((s) => s.length > 0)).toBe(true);
+    expect(shapes).toContain('same finger');
+  });
+
+  test('offers the analysis export', () => {
+    expect($('export-report').textContent).toContain('Export analysis');
+  });
+
   test('shows bigrams first, sorted by impact', () => {
     expect(rows().length).toBeGreaterThan(0);
     expect(gramCells()[0]).toBe('br');
@@ -136,6 +176,53 @@ describe('dashboard rendering', () => {
     for (const column of COLUMNS) {
       expect($('head-row').textContent).toContain(column.label);
     }
+  });
+});
+
+describe('accuracy panels', () => {
+  test('lists the confusions with what was owed and what arrived', () => {
+    const text = $('confusions').textContent ?? '';
+    expect($('confusions').querySelectorAll('.confusion').length).toBeGreaterThan(0);
+    expect(text).toContain('same finger');
+    expect(text).toContain('left standing');
+  });
+
+  test('ranks the characters that go wrong most often', () => {
+    expect($('char-accuracy').querySelectorAll('li').length).toBeGreaterThan(0);
+    expect($('char-accuracy').textContent).toContain('r');
+  });
+
+  test('names the most error-prone n-grams', () => {
+    expect($('top-errors').querySelectorAll('li').length).toBeGreaterThan(0);
+  });
+
+  test('reports accuracy in the summary cards', () => {
+    const text = $('cards').textContent ?? '';
+    expect(text).toContain('Accuracy');
+    expect(text).toContain('Lost to typos');
+  });
+});
+
+describe('charts', () => {
+  test('draws the speed against accuracy bars and names the cliff', () => {
+    expect($('speed-chart').querySelectorAll('.chart-bar').length).toBeGreaterThan(1);
+    expect($('cliff').textContent).toContain('ms');
+  });
+
+  test('draws the within-session curve', () => {
+    expect($('fatigue-chart').querySelectorAll('.chart-bar').length).toBeGreaterThan(0);
+  });
+
+  test('draws the daily history as lines with a legend', () => {
+    expect($('history-chart').querySelectorAll('polyline').length).toBe(2);
+    expect($('history-chart').textContent).toContain('WPM');
+    expect($('history-chart').textContent).toContain('Accuracy');
+  });
+
+  test('a chart with no data says so instead of drawing nothing', () => {
+    const empty = document.createElement('div');
+    empty.innerHTML = barChart([], { format: String, empty: 'nothing here' });
+    expect(empty.textContent).toContain('nothing here');
   });
 });
 
