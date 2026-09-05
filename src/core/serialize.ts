@@ -1,3 +1,11 @@
+import {
+  type AttemptRecord,
+  type Metrics,
+  type PerfBucket,
+  confusionKey,
+  createMetrics,
+  pruneMetrics,
+} from './metrics';
 import { type Settings, normalizeSettings } from './settings';
 import type { NgramStats } from './stats';
 import { DEFAULT_STORE_OPTIONS, type StoreOptions, createStore, mergeStores } from './store';
@@ -73,8 +81,85 @@ function parseRecord(key: string, value: unknown): NgramRecord | null {
     tSumSq: numberArray(value.tSumSq, n - 1),
     recent,
     cursor: Math.max(0, Math.round(numberOr(value.cursor, 0))),
+    ewmaFast: numberOr(value.ewmaFast, 0),
+    ewmaSlow: numberOr(value.ewmaSlow, 0),
     updated: numberOr(value.updated, 0),
   };
+}
+
+function parseAttempts(input: unknown): Record<string, AttemptRecord> {
+  const out: Record<string, AttemptRecord> = {};
+  if (!isRecord(input)) return out;
+  for (const [key, value] of Object.entries(input)) {
+    if (!isRecord(value)) continue;
+    out[key] = {
+      attempts: Math.max(0, Math.round(numberOr(value.attempts, 0))),
+      errors: Math.max(0, Math.round(numberOr(value.errors, 0))),
+    };
+  }
+  return out;
+}
+
+function parseBuckets(input: unknown): Record<string, PerfBucket> {
+  const out: Record<string, PerfBucket> = {};
+  if (!isRecord(input)) return out;
+  for (const [key, value] of Object.entries(input)) {
+    if (!isRecord(value)) continue;
+    out[key] = {
+      samples: Math.max(0, Math.round(numberOr(value.samples, 0))),
+      sumMs: Math.max(0, numberOr(value.sumMs, 0)),
+      attempts: Math.max(0, Math.round(numberOr(value.attempts, 0))),
+      errors: Math.max(0, Math.round(numberOr(value.errors, 0))),
+    };
+  }
+  return out;
+}
+
+/**
+ * Reads the accuracy block, tolerating its complete absence.
+ *
+ * Version 1 profiles have no metrics at all, so importing one simply yields
+ * empty counters rather than failing.
+ */
+export function parseMetrics(input: unknown): Metrics {
+  const metrics = createMetrics();
+  if (!isRecord(input)) return metrics;
+
+  if (isRecord(input.confusions)) {
+    for (const [key, value] of Object.entries(input.confusions)) {
+      if (!isRecord(value)) continue;
+      const expected =
+        typeof value.expected === 'string' ? value.expected : (key.split('>')[0] ?? '');
+      const typed = typeof value.typed === 'string' ? value.typed : (key.split('>')[1] ?? '');
+      if (expected === '' || typed === '') continue;
+      metrics.confusions[confusionKey(expected, typed)] = {
+        expected,
+        typed,
+        count: Math.max(0, Math.round(numberOr(value.count, 0))),
+        recoveryMs: Math.max(0, numberOr(value.recoveryMs, 0)),
+        recoveryCount: Math.max(0, Math.round(numberOr(value.recoveryCount, 0))),
+        uncorrected: Math.max(0, Math.round(numberOr(value.uncorrected, 0))),
+      };
+    }
+  }
+
+  metrics.chars = parseAttempts(input.chars);
+  metrics.transitions = parseAttempts(input.transitions);
+  metrics.speed = parseBuckets(input.speed);
+  metrics.fatigue = parseBuckets(input.fatigue);
+  metrics.days = parseBuckets(input.days);
+  metrics.sessions = Math.max(0, Math.round(numberOr(input.sessions, 0)));
+
+  const totals = isRecord(input.totals) ? input.totals : {};
+  metrics.totals = {
+    attempts: Math.max(0, Math.round(numberOr(totals.attempts, 0))),
+    errors: Math.max(0, Math.round(numberOr(totals.errors, 0))),
+    corrected: Math.max(0, Math.round(numberOr(totals.corrected, 0))),
+    uncorrected: Math.max(0, Math.round(numberOr(totals.uncorrected, 0))),
+  };
+
+  pruneMetrics(metrics);
+  return metrics;
 }
 
 /** Parses and sanitises a store, dropping anything malformed rather than throwing. */
@@ -95,6 +180,7 @@ export function parseStore(input: unknown): ProfileStore {
     const record = parseRecord(key, value);
     if (record) store.grams[`${record.n}:${record.gram}`] = record;
   }
+  store.metrics = parseMetrics(input.metrics);
   return store;
 }
 

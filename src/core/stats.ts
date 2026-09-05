@@ -1,3 +1,5 @@
+import { type GramShape, type LayoutId, classifyGram, getLayout } from './layout';
+import type { Metrics } from './metrics';
 import { graphemes } from './text';
 import type { NgramRecord, NgramSize, ProfileStore } from './types';
 
@@ -37,6 +39,20 @@ export interface NgramStats {
   updated: number;
   /** How many values back the median and p90 are computed over. */
   windowSize: number;
+  /** What this n-gram asks of your hands, from the keyboard layout. */
+  shape: GramShape;
+  /**
+   * Milliseconds this pair costs inside longer n-grams beyond what it costs
+   * alone. Positive means the pair is fine but its surroundings are not.
+   * Always 0 for n-grams longer than a bigram.
+   */
+  contextPenaltyMs: number;
+  /** Fast trend mean minus slow: negative means you are speeding up. */
+  trendMs: number;
+  /** Chance of fumbling this n-gram somewhere, or null when untracked. */
+  errorRate: number | null;
+  /** Keystrokes the error rate is based on. */
+  errorAttempts: number;
 }
 
 /** Your personal reference speed, derived from your own fastest bigrams. */
@@ -54,9 +70,79 @@ export interface Baseline {
 export interface StatsOptions {
   /** N-grams below this many observations are ignored by the baseline. */
   minSamples: number;
+  /** Keyboard the shape analysis is computed against. */
+  layout?: LayoutId;
 }
 
-export const DEFAULT_STATS_OPTIONS: StatsOptions = { minSamples: 5 };
+export const DEFAULT_STATS_OPTIONS: StatsOptions = { minSamples: 5, layout: 'qwerty-es' };
+
+/** Mean time a pair takes when it appears inside a longer n-gram. */
+export interface TransitionContext {
+  inContextMs: number;
+  samples: number;
+}
+
+/**
+ * Measures each key pair as it behaves inside longer n-grams.
+ *
+ * A pair can be quick in isolation and slow once it has to be entered from the
+ * middle of a word, which is a different problem from the pair itself being
+ * hard. Comparing the two tells them apart.
+ */
+export function computeTransitionContext(store: ProfileStore): Map<string, TransitionContext> {
+  const totals = new Map<string, { sum: number; count: number }>();
+
+  for (const record of Object.values(store.grams)) {
+    if (record.n < 3 || record.count === 0) continue;
+    const chars = graphemes(record.gram);
+    for (let i = 0; i < record.tSum.length; i++) {
+      const from = chars[i];
+      const to = chars[i + 1];
+      if (from === undefined || to === undefined) continue;
+      const key = `${from}>${to}`;
+      const entry = totals.get(key) ?? { sum: 0, count: 0 };
+      entry.sum += record.tSum[i] ?? 0;
+      entry.count += record.count;
+      totals.set(key, entry);
+    }
+  }
+
+  const context = new Map<string, TransitionContext>();
+  for (const [key, entry] of totals) {
+    if (entry.count > 0) {
+      context.set(key, { inContextMs: entry.sum / entry.count, samples: entry.count });
+    }
+  }
+  return context;
+}
+
+/**
+ * Chance of going wrong somewhere inside an n-gram.
+ *
+ * Combines the per-transition error rates as independent events, which is what
+ * "how often do I fumble this" means in practice.
+ */
+export function errorRateFor(
+  chars: readonly string[],
+  metrics: Metrics | undefined,
+): { rate: number | null; attempts: number } {
+  if (!metrics || chars.length < 2) return { rate: null, attempts: 0 };
+
+  let survival = 1;
+  let attempts = Number.POSITIVE_INFINITY;
+  let seen = false;
+
+  for (let i = 1; i < chars.length; i++) {
+    const record = metrics.transitions[`${chars[i - 1]}>${chars[i]}`];
+    if (!record || record.attempts === 0) continue;
+    seen = true;
+    survival *= 1 - record.errors / record.attempts;
+    attempts = Math.min(attempts, record.attempts);
+  }
+
+  if (!seen) return { rate: null, attempts: 0 };
+  return { rate: 1 - survival, attempts: Number.isFinite(attempts) ? attempts : 0 };
+}
 
 /** Percentile of an unsorted numeric array, linearly interpolated. */
 export function percentile(values: readonly number[], p: number): number {
@@ -147,8 +233,18 @@ export function computeBaseline(
   };
 }
 
+export interface RecordContext {
+  layout?: LayoutId;
+  transitionContext?: Map<string, TransitionContext>;
+  metrics?: Metrics;
+}
+
 /** Computes derived statistics for one record. `impact` is filled in later. */
-export function statsForRecord(record: NgramRecord, baseline: Baseline): NgramStats {
+export function statsForRecord(
+  record: NgramRecord,
+  baseline: Baseline,
+  context: RecordContext = {},
+): NgramStats {
   const values = record.recent.length > 0 ? record.recent : [];
   const mean = record.count > 0 ? record.sum / record.count : 0;
   const med = values.length > 0 ? median(values) : mean;
@@ -175,6 +271,19 @@ export function statsForRecord(record: NgramRecord, baseline: Baseline): NgramSt
   const expected = baseline.transitionMs * steps;
   const excessMs = Math.max(0, med - expected);
 
+  const layout = getLayout(context.layout ?? 'qwerty-es');
+  const shape = classifyGram(chars, layout);
+  const { rate, attempts } = errorRateFor(chars, context.metrics);
+
+  let contextPenaltyMs = 0;
+  if (record.n === 2 && context.transitionContext) {
+    const pair = context.transitionContext.get(`${chars[0] ?? ''}>${chars[1] ?? ''}`);
+    if (pair) contextPenaltyMs = pair.inContextMs - med;
+  }
+
+  const trendMs =
+    record.ewmaFast > 0 && record.ewmaSlow > 0 ? record.ewmaFast - record.ewmaSlow : 0;
+
   return {
     key: `${record.n}:${record.gram}`,
     gram: record.gram,
@@ -194,6 +303,11 @@ export function statsForRecord(record: NgramRecord, baseline: Baseline): NgramSt
     transitions,
     updated: record.updated,
     windowSize: values.length,
+    shape,
+    contextPenaltyMs,
+    trendMs,
+    errorRate: rate,
+    errorAttempts: attempts,
   };
 }
 
@@ -208,9 +322,14 @@ export function computeAllStats(
   baseline: Baseline,
   opts: StatsOptions = DEFAULT_STATS_OPTIONS,
 ): NgramStats[] {
+  const context: RecordContext = {
+    layout: opts.layout,
+    transitionContext: computeTransitionContext(store),
+    metrics: store.metrics,
+  };
   const all = Object.values(store.grams)
     .filter((record) => record.count >= 1)
-    .map((record) => statsForRecord(record, baseline));
+    .map((record) => statsForRecord(record, baseline, context));
 
   const worstByN = new Map<NgramSize, number>();
   for (const stat of all) {

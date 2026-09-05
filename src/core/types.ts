@@ -1,3 +1,5 @@
+import type { Metrics } from './metrics';
+
 /**
  * Core domain types for Tetratype.
  *
@@ -65,6 +67,15 @@ export interface NgramRecord {
   tSumSq: number[];
   /** Ring buffer of the most recent total durations, rounded to 0.1 ms. */
   recent: number[];
+  /**
+   * Two exponentially weighted means of the total duration.
+   *
+   * The fast one follows recent form, the slow one holds your longer-run
+   * average. Their difference is a trend that costs two numbers instead of a
+   * stored time series.
+   */
+  ewmaFast: number;
+  ewmaSlow: number;
   /** Write cursor into `recent`, used once the buffer is full. */
   cursor: number;
   /** Epoch milliseconds of the most recent observation. */
@@ -80,6 +91,8 @@ export interface ProfileStore {
   totals: ProfileTotals;
   /** Keyed by `${n}:${gram}`. */
   grams: Record<string, NgramRecord>;
+  /** Accuracy and behaviour counters that are not per-n-gram. */
+  metrics: Metrics;
 }
 
 export interface ProfileTotals {
@@ -91,5 +104,10 @@ export interface ProfileTotals {
   samples: number;
 }
 
-/** The current schema version of {@link ProfileStore}. */
-export const STORE_VERSION = 1;
+/**
+ * The current schema version of {@link ProfileStore}.
+ *
+ * 2 added the accuracy metrics block and the per-n-gram trend means. Version 1
+ * profiles import cleanly: the missing fields take their zero values.
+ */
+export const STORE_VERSION = 2;
