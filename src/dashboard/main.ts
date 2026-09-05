@@ -24,6 +24,7 @@ import {
   type Response,
   type RuntimeMeta,
   STORAGE_KEYS,
+  type Snapshot,
 } from '../shared/messages';
 import { onStorageChanged, readKey, runtime } from '../shared/webext';
 import { ago, bytes, int, ms, seconds } from './format';
@@ -66,7 +67,18 @@ async function send(message: Message): Promise<Response> {
   return (await runtime().sendMessage(message)) as Response;
 }
 
-async function load(): Promise<void> {
+/** Asks the background page for state it has not persisted yet. */
+async function requestSnapshot(): Promise<Snapshot | null> {
+  try {
+    const response = await send({ type: 'getSnapshot' });
+    return response.ok && response.type === 'snapshot' ? response.snapshot : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the profile straight out of storage, if the background is asleep. */
+async function loadFromStorage(): Promise<void> {
   const [rawStore, rawSettings, rawMeta] = await Promise.all([
     readKey<ProfileStore | null>(STORAGE_KEYS.store, null),
     readKey<unknown>(STORAGE_KEYS.settings, null),
@@ -75,6 +87,24 @@ async function load(): Promise<void> {
   store = rawStore ?? createStore();
   settings = rawSettings ? normalizeSettings(rawSettings) : { ...DEFAULT_SETTINGS };
   meta = { ...DEFAULT_META, ...rawMeta };
+}
+
+/**
+ * Loads the profile.
+ *
+ * The background page is asked first because that makes it flush whatever is
+ * still buffered, so opening the dashboard right after a test includes those
+ * last few seconds instead of waiting for the next debounced write.
+ */
+async function load(): Promise<void> {
+  const snapshot = await requestSnapshot();
+  if (snapshot) {
+    store = snapshot.store;
+    settings = normalizeSettings(snapshot.settings);
+    meta = { ...DEFAULT_META, ...snapshot.meta };
+  } else {
+    await loadFromStorage();
+  }
   recompute();
 }
 
