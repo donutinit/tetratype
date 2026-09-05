@@ -1,5 +1,6 @@
 /** Toolbar popup: capture state, a glance at the numbers, and a way in. */
 
+import { summarizeAccuracy } from '../core/insights';
 import { DEFAULT_SETTINGS, type Settings, normalizeSettings } from '../core/settings';
 import { computeAllStats, computeBaseline, summarize } from '../core/stats';
 import { createStore } from '../core/store';
@@ -38,12 +39,15 @@ async function refresh(): Promise<void> {
   const store = rawStore ?? createStore();
   settings = rawSettings ? normalizeSettings(rawSettings) : { ...DEFAULT_SETTINGS };
 
-  const baseline = computeBaseline(store, { minSamples: settings.minSamples });
-  const summary = summarize(store, computeAllStats(store, baseline), baseline);
+  const opts = { minSamples: settings.minSamples, layout: settings.layout };
+  const baseline = computeBaseline(store, opts);
+  const summary = summarize(store, computeAllStats(store, baseline, opts), baseline);
+  const accuracy = summarizeAccuracy(store.metrics);
 
   renderToggle();
   renderStats([
     ['Implied WPM', summary.impliedWpm > 0 ? summary.impliedWpm.toFixed(1) : '—', true],
+    ['Accuracy', accuracy.attempts > 0 ? `${(accuracy.accuracy * 100).toFixed(1)}%` : '—'],
     ['Baseline', `${baseline.transitionMs.toFixed(0)} ms`],
     ['Keystrokes', int(summary.keystrokes)],
     ['N-grams', int(summary.uniqueGrams[2] + summary.uniqueGrams[3] + summary.uniqueGrams[4])],
