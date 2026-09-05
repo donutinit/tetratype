@@ -11,7 +11,7 @@ import {
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { computeAllStats, computeBaseline } from '../src/core/stats';
 import { type StoreOptions, applySample, createStore } from '../src/core/store';
-import type { NgramSample, ProfileStore } from '../src/core/types';
+import { type NgramSample, type ProfileStore, STORE_VERSION } from '../src/core/types';
 
 const OPTS: StoreOptions = { recentWindow: 8, maxGrams: 100 };
 
@@ -56,6 +56,75 @@ describe('export and import round trip', () => {
     const parsed = parseExport(JSON.stringify(store));
     expect(parsed.store.grams['2:pa']?.count).toBe(1);
     expect(parsed.settings).toBeNull();
+  });
+});
+
+describe('version 1 profiles', () => {
+  /** Exactly what version 1 wrote: no metrics block, no trend means. */
+  const legacy = {
+    format: EXPORT_FORMAT,
+    version: 1,
+    exportedAt: 1_700_000_000_000,
+    store: {
+      version: 1,
+      createdAt: 0,
+      updatedAt: 10,
+      totals: { keystrokes: 500, runs: 90, samples: 300 },
+      grams: {
+        '2:pa': {
+          gram: 'pa',
+          n: 2,
+          count: 12,
+          sum: 1200,
+          sumSq: 130000,
+          min: 80,
+          max: 140,
+          tSum: [1200],
+          tSumSq: [130000],
+          recent: [95, 100, 105],
+          cursor: 3,
+          updated: 10,
+        },
+      },
+    },
+  };
+
+  test('imports without losing anything it did carry', () => {
+    const parsed = parseExport(JSON.stringify(legacy));
+    const record = parsed.store.grams['2:pa'];
+    expect(record).toMatchObject({ count: 12, sum: 1200, min: 80, max: 140 });
+    expect(record?.recent).toEqual([95, 100, 105]);
+    expect(parsed.store.totals.keystrokes).toBe(500);
+  });
+
+  test('fills the fields version 2 added with their zero values', () => {
+    const parsed = parseExport(JSON.stringify(legacy));
+    expect(parsed.store.grams['2:pa']).toMatchObject({ ewmaFast: 0, ewmaSlow: 0 });
+    expect(parsed.store.metrics.totals).toEqual({
+      attempts: 0,
+      errors: 0,
+      corrected: 0,
+      uncorrected: 0,
+    });
+    expect(parsed.store.metrics.confusions).toEqual({});
+  });
+
+  test('is upgraded to the current schema version', () => {
+    expect(parseExport(JSON.stringify(legacy)).store.version).toBe(STORE_VERSION);
+  });
+
+  test('still computes statistics once imported', () => {
+    const parsed = parseExport(JSON.stringify(legacy));
+    const stats = computeAllStats(parsed.store, computeBaseline(parsed.store));
+    expect(stats[0]).toMatchObject({ gram: 'pa', count: 12, errorRate: null });
+    expect(stats[0]?.shape.label).toBeTruthy();
+  });
+
+  test('merges into a version 2 profile', () => {
+    const current = seed([['pa', 100, 5]]);
+    const merged = applyImport(current, parseExport(JSON.stringify(legacy)).store, 'merge', OPTS);
+    expect(merged.grams['2:pa']?.count).toBe(17);
+    expect(merged.metrics.totals.attempts).toBe(0);
   });
 });
 
