@@ -1,0 +1,30 @@
+{
+  "name": "tetratype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Privacy-first n-gram latency profiler for Monkeytype.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "build:zip": "bun run scripts/build.ts --zip",
+    "dev": "bun run scripts/build.ts --watch",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check": "bun run typecheck && bun run lint && bun test && bun run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "^1.1.14",
+    "@types/firefox-webext-browser": "^120.0.4",
+    "typescript": "^5.7.2"
+  },
+  "trustedDependencies": [
+    "@biomejs/biome"
+  ]
+}
