@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { applySample, createStore } from '../src/core/store';
 import type { NgramSample, ProfileStore } from '../src/core/types';
+import { COLUMNS } from '../src/dashboard/table';
 import { STORAGE_KEYS } from '../src/shared/messages';
 
 const OPTS = { recentWindow: 40, maxGrams: 12000 };
@@ -131,8 +132,10 @@ describe('dashboard rendering', () => {
   });
 
   test('renders a header cell for every column', () => {
-    expect($('head-row').querySelectorAll('th').length).toBe(10);
-    expect($('head-row').textContent).toContain('Impact');
+    expect($('head-row').querySelectorAll('th').length).toBe(COLUMNS.length);
+    for (const column of COLUMNS) {
+      expect($('head-row').textContent).toContain(column.label);
+    }
   });
 });
 

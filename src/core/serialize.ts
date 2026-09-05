@@ -1,3 +1,4 @@
+import type { ConfusionStat } from './insights';
 import {
   type AttemptRecord,
   type Metrics,
@@ -242,6 +243,14 @@ const CSV_COLUMNS = [
   'excess_ms',
   'ms_lost',
   'impact',
+  'shape',
+  'same_finger',
+  'row_jump',
+  'dead_keys',
+  'miss_rate',
+  'miss_attempts',
+  'trend_ms',
+  'context_ms',
   'transitions',
   'last_seen',
 ] as const;
@@ -253,6 +262,37 @@ function csvField(value: string): string {
 
 function fixed(value: number, digits = 2): string {
   return Number.isFinite(value) ? value.toFixed(digits) : '0';
+}
+
+const CONFUSION_COLUMNS = [
+  'expected',
+  'typed',
+  'count',
+  'share',
+  'relation',
+  'mean_recovery_ms',
+  'ms_lost',
+  'uncorrected',
+] as const;
+
+/** Exports the mistakes table, for analysis alongside the timings. */
+export function confusionsToCsv(rows: readonly ConfusionStat[]): string {
+  const lines = [CONFUSION_COLUMNS.join(',')];
+  for (const row of rows) {
+    lines.push(
+      [
+        csvField(row.expected),
+        csvField(row.typed),
+        String(row.count),
+        fixed(row.share, 4),
+        csvField(row.relation),
+        fixed(row.meanRecoveryMs),
+        fixed(row.msLost, 0),
+        String(row.uncorrected),
+      ].join(','),
+    );
+  }
+  return `${lines.join('\n')}\n`;
 }
 
 /** Renders per-transition means as `p>a:95.10|a>r:110.23`. */
@@ -279,6 +319,14 @@ export function toCsv(stats: readonly NgramStats[]): string {
         fixed(stat.excessMs),
         fixed(stat.msLost, 0),
         fixed(stat.impact, 1),
+        csvField(stat.shape.label),
+        String(stat.shape.sameFingerCount),
+        String(stat.shape.maxRowJump),
+        String(stat.shape.deadKeyCount),
+        stat.errorRate === null ? '' : fixed(stat.errorRate, 4),
+        String(stat.errorAttempts),
+        fixed(stat.trendMs, 1),
+        fixed(stat.contextPenaltyMs, 1),
         csvField(transitionsField(stat)),
         new Date(stat.updated).toISOString(),
       ].join(','),
