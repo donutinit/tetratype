@@ -95,7 +95,11 @@ The gap between them is the size of the prize.
 Tetratype is not on Mozilla Add-ons yet. Install it temporarily — the extension stays
 loaded until you close the browser.
 
-**Requirements:** Firefox or LibreWolf 115+, and [Bun](https://bun.sh) to build.
+**Requirements:** Firefox or LibreWolf 115+.
+
+Either download `tetratype.zip` from the
+[latest release](https://github.com/donutinit/tetratype/releases/latest) and unzip it, or
+build it yourself with [Bun](https://bun.sh):
 
 ```bash
 git clone https://github.com/donutinit/tetratype.git
@@ -108,7 +112,7 @@ Then, in Firefox or LibreWolf:
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click **Load Temporary Add-on…**.
-3. Select **`dist/manifest.json`** from the folder you just built.
+3. Select the **`manifest.json`** inside the unzipped folder (or in `dist/` if you built it).
 4. Open <https://monkeytype.com> and type.
 5. Click the Tetratype toolbar icon, then **Open dashboard**.
 
