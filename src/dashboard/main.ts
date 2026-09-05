@@ -6,6 +6,18 @@
  * dashboard simply re-renders whenever storage changes.
  */
 
+import {
+  type AccuracySummary,
+  accuracyCliff,
+  charAccuracy,
+  confusionRanking,
+  dailyHistory,
+  fatigueCurve,
+  speedAccuracyCurve,
+  summarizeAccuracy,
+} from '../core/insights';
+import { LAYOUT_IDS, getLayout } from '../core/layout';
+import { buildReport } from '../core/report';
 import { type ImportMode, buildExport, toCsv } from '../core/serialize';
 import { DEFAULT_SETTINGS, type Settings, normalizeSettings } from '../core/settings';
 import {
@@ -16,6 +28,7 @@ import {
   summarize,
 } from '../core/stats';
 import { createStore, estimateSize } from '../core/store';
+import { displayChar } from '../core/text';
 import { COARSE_TIMER_MS, isCoarse } from '../core/timing';
 import type { NgramSize, ProfileStore } from '../core/types';
 import {
@@ -27,7 +40,8 @@ import {
   type Snapshot,
 } from '../shared/messages';
 import { onStorageChanged, readKey, runtime } from '../shared/webext';
-import { ago, bytes, int, ms, seconds } from './format';
+import { barChart, lineChart } from './charts';
+import { ago, bytes, int, ms, pct, seconds } from './format';
 import { COLUMNS, type SortKey, compare, escapeHtml, renderDetail } from './table';
 
 /** Rows rendered at once. Beyond this the table stops being readable anyway. */
@@ -58,6 +72,7 @@ let settings: Settings = { ...DEFAULT_SETTINGS };
 let meta: RuntimeMeta = { ...DEFAULT_META };
 let stats: NgramStats[] = [];
 let summary: ProfileSummary | null = null;
+let accuracy: AccuracySummary | null = null;
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -109,9 +124,11 @@ async function load(): Promise<void> {
 }
 
 function recompute(): void {
-  const baseline = computeBaseline(store, { minSamples: settings.minSamples });
-  stats = computeAllStats(store, baseline, { minSamples: settings.minSamples });
+  const opts = { minSamples: settings.minSamples, layout: settings.layout };
+  const baseline = computeBaseline(store, opts);
+  stats = computeAllStats(store, baseline, opts);
   summary = summarize(store, stats, baseline);
+  accuracy = summarizeAccuracy(store.metrics);
 }
 
 /* ------------------------------------------------------------- notices --- */
@@ -156,7 +173,7 @@ interface Card {
   accent?: boolean;
 }
 
-function buildCards(s: ProfileSummary): Card[] {
+function buildCards(s: ProfileSummary, a: AccuracySummary | null): Card[] {
   const sizeBytes = estimateSize(store);
   return [
     {
@@ -187,18 +204,33 @@ function buildCards(s: ProfileSummary): Card[] {
       value: int(s.uniqueGrams[2] + s.uniqueGrams[3] + s.uniqueGrams[4]),
       sub: `${int(s.uniqueGrams[2])} / ${int(s.uniqueGrams[3])} / ${int(s.uniqueGrams[4])} by length`,
     },
+    {
+      label: 'Accuracy',
+      value: a && a.attempts > 0 ? pct(a.accuracy, 1) : '—',
+      sub: a && a.attempts > 0 ? `${int(a.errors)} slips in ${int(a.attempts)}` : 'not tracked yet',
+    },
+    {
+      label: 'Lost to typos',
+      value: a && a.msLostToErrors > 0 ? seconds(a.msLostToErrors) : '—',
+      sub:
+        a && a.meanRecoveryMs > 0
+          ? `${ms(a.meanRecoveryMs)} ms to recover, ${int(a.uncorrected)} left standing`
+          : 'no corrections timed yet',
+    },
     { label: 'Observations', value: int(s.samples), sub: `${bytes(sizeBytes)} stored` },
     {
       label: 'Last capture',
       value: ago(meta.lastCaptureAt),
-      sub: settings.capture ? 'capture is on' : 'capture is paused',
+      sub: settings.capture
+        ? `capture is on · ${int(a?.sessions ?? 0)} sessions`
+        : 'capture is paused',
     },
   ];
 }
 
 function renderCards(): void {
   if (!summary) return;
-  $('cards').innerHTML = buildCards(summary)
+  $('cards').innerHTML = buildCards(summary, accuracy)
     .map(
       (card) => `<div class="card${card.accent ? ' card-accent' : ''}">
         <div class="card-label">${escapeHtml(card.label)}</div>
@@ -252,6 +284,129 @@ function renderInsights(): void {
     'top-impact',
     [...source].sort((a, b) => b.msLost - a.msLost).slice(0, TOP_LIST_SIZE),
     (s) => `${seconds(s.msLost)} lost · ${s.count}×`,
+  );
+  renderTopList(
+    'top-errors',
+    source
+      .filter((s) => s.errorRate !== null && s.errorAttempts >= settings.minSamples)
+      .sort((a, b) => (b.errorRate ?? 0) - (a.errorRate ?? 0))
+      .slice(0, TOP_LIST_SIZE),
+    (s) => `${pct(s.errorRate ?? 0, 1)} miss · ${s.shape.label}`,
+  );
+}
+
+/* ------------------------------------------------------------ accuracy --- */
+
+function renderConfusions(): void {
+  const el = $('confusions');
+  const rows = confusionRanking(store.metrics, { layout: settings.layout }).slice(0, TOP_LIST_SIZE);
+  if (rows.length === 0) {
+    el.innerHTML = `<p class="chart-empty">No repeated mistakes recorded yet</p>`;
+    return;
+  }
+
+  el.innerHTML = rows
+    .map((row) => {
+      const recovery = row.meanRecoveryMs > 0 ? `${ms(row.meanRecoveryMs)} ms to fix` : 'unfixed';
+      const standing = row.uncorrected > 0 ? ` · ${int(row.uncorrected)} left standing` : '';
+      return `<div class="confusion">
+        <span class="pair">
+          <span class="want">${escapeHtml(displayChar(row.expected))}</span>
+          <span class="arrow">←</span>
+          <span class="got">${escapeHtml(displayChar(row.typed))}</span>
+        </span>
+        <span class="meta">${escapeHtml(row.relation.replace(/-/g, ' '))} · ${escapeHtml(recovery)}${escapeHtml(standing)}</span>
+        <span class="cost">${escapeHtml(int(row.count))}× · ${escapeHtml(seconds(row.msLost))}</span>
+      </div>`;
+    })
+    .join('');
+}
+
+function renderCharAccuracy(): void {
+  const rows = charAccuracy(store.metrics, Math.max(10, settings.minSamples * 2)).slice(
+    0,
+    TOP_LIST_SIZE,
+  );
+  const el = $('char-accuracy');
+  if (rows.length === 0) {
+    el.innerHTML = `<li class="muted">Not enough data yet</li>`;
+    return;
+  }
+  el.innerHTML = rows
+    .map(
+      (row) => `<li>
+        <span class="gram">${escapeHtml(displayChar(row.char))}</span>
+        <span class="meta">${escapeHtml(pct(row.rate, 1))} of ${escapeHtml(int(row.attempts))}</span>
+      </li>`,
+    )
+    .join('');
+}
+
+/* -------------------------------------------------------------- charts --- */
+
+function renderSpeedChart(): void {
+  const curve = speedAccuracyCurve(store.metrics);
+  const cliff = accuracyCliff(curve);
+  $('speed-chart').innerHTML = barChart(
+    curve.map((point) => ({
+      label: `${point.fromMs}`,
+      value: point.rate * 100,
+      detail: `${int(point.errors)} slips in ${int(point.attempts)} keystrokes`,
+      highlight: cliff !== null && point.fromMs === cliff.fromMs,
+    })),
+    {
+      format: (value) => `${value.toFixed(0)}%`,
+      empty: 'Not enough keystrokes to plot the trade-off yet',
+    },
+  );
+
+  const note = $('cliff');
+  if (!cliff) {
+    note.textContent =
+      curve.length > 0 ? 'Your error rate is above 5% in every speed band measured so far.' : '';
+    return;
+  }
+  note.innerHTML =
+    `Bars are error rate per inter-key interval, in milliseconds. You hold accuracy down to ` +
+    `<b>${cliff.fromMs}–${cliff.toMs} ms</b> between keys; below that the miss rate climbs.`;
+}
+
+function renderFatigueChart(): void {
+  const curve = fatigueCurve(store.metrics);
+  $('fatigue-chart').innerHTML = barChart(
+    curve.map((point) => ({
+      label: `${Math.round(point.fromKeystrokes / 100) / 10}k`,
+      value: point.rate * 100,
+      detail: `${ms(point.meanMs)} ms per key, ${int(point.attempts)} keystrokes`,
+    })),
+    {
+      format: (value) => `${value.toFixed(1)}%`,
+      empty: 'Type for longer in one sitting to see a fatigue curve',
+    },
+  );
+}
+
+function renderHistoryChart(): void {
+  const history = dailyHistory(store.metrics);
+  $('history-chart').innerHTML = lineChart(
+    [
+      {
+        name: 'WPM',
+        color: 'var(--accent)',
+        values: history.map((d) => d.wpm),
+        format: (v) => v.toFixed(0),
+      },
+      {
+        name: 'Accuracy',
+        color: 'var(--good)',
+        values: history.map((d) => 1 - d.rate),
+        format: (v) => pct(v, 1),
+      },
+    ],
+    {
+      labels: history.map((d) => d.date),
+      empty: 'Come back after a few days of typing',
+    },
   );
 }
 
@@ -348,6 +503,23 @@ function settingControls(): SettingControl[] {
       input: `<input type="number" min="500" max="200000" step="500" value="${settings.maxGrams}" data-setting="maxGrams" />`,
     },
     {
+      key: 'layout',
+      label: 'Keyboard layout',
+      help: 'Decides which pairs count as same-finger, rolls or stretches.',
+      input: `<select data-setting="layout">${LAYOUT_IDS.map(
+        (id) =>
+          `<option value="${id}"${id === settings.layout ? ' selected' : ''}>${escapeHtml(
+            getLayout(id).name,
+          )}</option>`,
+      ).join('')}</select>`,
+    },
+    {
+      key: 'trackAccuracy',
+      label: 'Track mistakes',
+      help: 'Reads the character the test is waiting for, so typos can be named.',
+      input: `<input type="checkbox" data-setting="trackAccuracy" ${settings.trackAccuracy ? 'checked' : ''} />`,
+    },
+    {
       key: 'includeSpaces',
       label: 'Include spaces',
       help: 'Off by default, so n-grams stay inside a single word.',
@@ -383,6 +555,11 @@ function render(): void {
   renderTimerWarning();
   renderCards();
   renderInsights();
+  renderConfusions();
+  renderCharAccuracy();
+  renderSpeedChart();
+  renderFatigueChart();
+  renderHistoryChart();
   renderHead();
   renderBody();
   renderSettings();
@@ -447,6 +624,15 @@ function wire(): void {
   $('export-csv').addEventListener('click', () => {
     const rows = stats.filter((s) => s.count >= view.minSamples);
     download(`tetratype-${stamp()}.csv`, toCsv(rows), 'text/csv');
+  });
+
+  $('export-report').addEventListener('click', () => {
+    if (!summary) return;
+    download(
+      `tetratype-analysis-${stamp()}.md`,
+      buildReport({ store, settings, stats, summary, minSamples: view.minSamples }),
+      'text/markdown',
+    );
   });
 
   $('import').addEventListener('click', () => $<HTMLInputElement>('import-file').click());
@@ -526,7 +712,12 @@ function wire(): void {
     const input = event.target as HTMLInputElement;
     const key = input.dataset.setting as keyof Settings | undefined;
     if (!key) return;
-    const value = input.type === 'checkbox' ? input.checked : Number(input.value);
+    const value =
+      input.type === 'checkbox'
+        ? input.checked
+        : input.tagName === 'SELECT'
+          ? input.value
+          : Number(input.value);
     void patchSettings({ [key]: value } as Partial<Settings>);
   });
 

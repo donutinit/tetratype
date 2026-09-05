@@ -19,6 +19,7 @@
         <button id="toggle-capture" class="btn btn-primary" type="button">Pause capture</button>
         <button id="export-json" class="btn" type="button">Export JSON</button>
         <button id="export-csv" class="btn" type="button">Export CSV</button>
+        <button id="export-report" class="btn btn-primary" type="button">Export analysis</button>
         <button id="import" class="btn" type="button">Import</button>
         <button id="reset" class="btn btn-danger" type="button">Reset</button>
         <button id="theme" class="btn btn-icon" type="button" title="Toggle theme"
@@ -45,6 +46,10 @@
         <article class="panel">
           <h2>Highest impact <span class="hint">slowness × frequency</span></h2>
           <ol id="top-impact" class="toplist"></ol>
+        </article>
+        <article class="panel">
+          <h2>Most error-prone <span class="hint">by miss rate</span></h2>
+          <ol id="top-errors" class="toplist"></ol>
         </article>
       </section>
 
@@ -77,6 +82,33 @@
           </table>
         </div>
         <p id="empty" class="empty" hidden></p>
+      </section>
+
+      <section class="insights" aria-label="Accuracy">
+        <article class="panel">
+          <h2>Confusions <span class="hint">what you type instead</span></h2>
+          <div id="confusions" class="confusions"></div>
+        </article>
+        <article class="panel">
+          <h2>Hardest characters <span class="hint">by miss rate</span></h2>
+          <ol id="char-accuracy" class="toplist"></ol>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Speed against accuracy <span class="hint">how hard you can push</span></h2>
+        <div id="speed-chart" class="chart"></div>
+        <p id="cliff" class="chart-note"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Within a session <span class="hint">warm-up and fatigue</span></h2>
+        <div id="fatigue-chart" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Over time <span class="hint">daily history</span></h2>
+        <div id="history-chart" class="chart"></div>
       </section>
 
       <section class="panel">
