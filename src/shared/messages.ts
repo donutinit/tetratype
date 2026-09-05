@@ -1,3 +1,4 @@
+import type { Metrics } from '../core/metrics';
 import type { ImportMode } from '../core/serialize';
 import type { Settings } from '../core/settings';
 import type { NgramSample, ProfileStore } from '../core/types';
@@ -31,6 +32,8 @@ export interface IngestBatch {
   keystrokes: number;
   runs: number;
   timerResolutionMs: number;
+  /** Accuracy counters gathered over the same window. */
+  metrics: Metrics;
 }
 
 export type Message =

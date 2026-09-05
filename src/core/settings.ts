@@ -1,3 +1,5 @@
+import { LAYOUT_IDS, type LayoutId } from './layout';
+
 /** User-tunable behaviour, persisted alongside the profile. */
 export interface Settings {
   /** Master switch for the capture layer. */
@@ -8,6 +10,17 @@ export interface Settings {
   includeSpaces: boolean;
   /** Break the run when Monkeytype marks a character as incorrect. */
   detectErrors: boolean;
+  /**
+   * Read the character the test is waiting for, so mistakes can be named.
+   *
+   * This is the one thing Tetratype reads from the page beyond your own
+   * keystrokes: a single character of lookahead, stored only as part of an
+   * `expected -> typed` pair. Turning it off keeps error detection working
+   * through Monkeytype's own markup, but there is then no confusion data.
+   */
+  trackAccuracy: boolean;
+  /** Keyboard the finger and hand analysis is computed against. */
+  layout: LayoutId;
   /** Ring-buffer size per n-gram, used for median and p90. */
   recentWindow: number;
   /** Cap on distinct n-grams retained. */
@@ -21,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   breakOnPauseMs: 1000,
   includeSpaces: false,
   detectErrors: true,
+  trackAccuracy: true,
+  layout: 'qwerty-es',
   recentWindow: 40,
   maxGrams: 12000,
   minSamples: 5,
@@ -55,6 +70,10 @@ export function normalizeSettings(input: unknown): Settings {
     capture: bool(raw.capture, DEFAULT_SETTINGS.capture),
     includeSpaces: bool(raw.includeSpaces, DEFAULT_SETTINGS.includeSpaces),
     detectErrors: bool(raw.detectErrors, DEFAULT_SETTINGS.detectErrors),
+    trackAccuracy: bool(raw.trackAccuracy, DEFAULT_SETTINGS.trackAccuracy),
+    layout: LAYOUT_IDS.includes(raw.layout as LayoutId)
+      ? (raw.layout as LayoutId)
+      : DEFAULT_SETTINGS.layout,
     breakOnPauseMs: clampInt(
       raw.breakOnPauseMs,
       BOUNDS.breakOnPauseMs,
