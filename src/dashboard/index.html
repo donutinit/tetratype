@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tetratype</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="icons/icon.svg" alt="" width="28" height="28" />
+        <div>
+          <h1>Tetratype</h1>
+          <p class="tagline">n-gram latency profiler</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="toggle-capture" class="btn btn-primary" type="button">Pause capture</button>
+        <button id="export-json" class="btn" type="button">Export JSON</button>
+        <button id="export-csv" class="btn" type="button">Export CSV</button>
+        <button id="import" class="btn" type="button">Import</button>
+        <button id="reset" class="btn btn-danger" type="button">Reset</button>
+        <button id="theme" class="btn btn-icon" type="button" title="Toggle theme"
+                aria-label="Toggle theme">◐</button>
+        <input id="import-file" type="file" accept="application/json,.json" hidden />
+      </div>
+    </header>
+
+    <div id="notice" class="notice" hidden></div>
+    <div id="timer-warning" class="notice notice-warn" hidden></div>
+
+    <main>
+      <section class="cards" id="cards" aria-label="Summary"></section>
+
+      <section class="insights" aria-label="Highlights">
+        <article class="panel">
+          <h2>Slowest <span class="hint">by ms per transition</span></h2>
+          <ol id="top-slow" class="toplist"></ol>
+        </article>
+        <article class="panel">
+          <h2>Most inconsistent <span class="hint">by variability</span></h2>
+          <ol id="top-erratic" class="toplist"></ol>
+        </article>
+        <article class="panel">
+          <h2>Highest impact <span class="hint">slowness × frequency</span></h2>
+          <ol id="top-impact" class="toplist"></ol>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="toolbar">
+          <div class="tabs" role="tablist" id="tabs">
+            <button class="tab is-active" role="tab" data-n="2" type="button">Bigrams</button>
+            <button class="tab" role="tab" data-n="3" type="button">Trigrams</button>
+            <button class="tab" role="tab" data-n="4" type="button">Tetragrams</button>
+          </div>
+          <div class="filters">
+            <label class="field">
+              <span>Contains</span>
+              <input id="filter-text" type="search" placeholder="e.g. ar, ñ, qu" spellcheck="false" />
+            </label>
+            <label class="field field-narrow">
+              <span>Min samples</span>
+              <input id="filter-min" type="number" min="1" step="1" value="5" />
+            </label>
+            <span id="row-count" class="row-count"></span>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table id="table">
+            <thead>
+              <tr id="head-row"></tr>
+            </thead>
+            <tbody id="body"></tbody>
+          </table>
+        </div>
+        <p id="empty" class="empty" hidden></p>
+      </section>
+
+      <section class="panel">
+        <h2>Settings</h2>
+        <div class="settings" id="settings"></div>
+        <p class="fineprint">
+          Tetratype runs only on <code>monkeytype.com</code>, stores everything in this browser and
+          never makes a network request. Raw keystrokes are never written to disk — only aggregate
+          timings per n-gram plus a bounded window of recent durations.
+        </p>
+      </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>
