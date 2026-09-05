@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Tetratype",
+  "version": "0.1.0",
+  "description": "Privacy-first n-gram latency profiler for Monkeytype.",
+  "homepage_url": "https://github.com/donutinit/tetratype",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tetratype@donutinit.github.io",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://monkeytype.com/*", "https://www.monkeytype.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "Tetratype",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon.svg",
+      "96": "icons/icon.svg"
+    }
+  },
+  "options_ui": {
+    "page": "dashboard.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg",
+    "128": "icons/icon.svg"
+  }
+}
