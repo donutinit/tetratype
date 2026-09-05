@@ -5,6 +5,14 @@ export interface ExtractOptions {
   maxTransitionMs: number;
   /** Which n-gram lengths to extract. Defaults to 2, 3 and 4. */
   sizes?: readonly NgramSize[];
+  /**
+   * Skips windows that end before this index.
+   *
+   * Used when a long run is split: the tail of the previous chunk is carried
+   * over so n-grams still span the seam, and this stops the windows that were
+   * already emitted from being counted a second time.
+   */
+  minEndIndex?: number;
 }
 
 /**
@@ -16,10 +24,12 @@ export interface ExtractOptions {
  */
 export function extractNgrams(run: readonly Keystroke[], opts: ExtractOptions): NgramSample[] {
   const sizes = opts.sizes ?? NGRAM_SIZES;
+  const minEndIndex = opts.minEndIndex ?? 0;
   const samples: NgramSample[] = [];
 
   for (const n of sizes) {
     for (let i = 0; i + n <= run.length; i++) {
+      if (i + n - 1 < minEndIndex) continue;
       const window = run.slice(i, i + n);
       const transitions: number[] = [];
       let ok = true;
