@@ -1,3 +1,5 @@
+import { createMetrics, mergeMetrics } from './metrics';
+import type { Metrics } from './metrics';
 import { gramKey } from './ngram';
 import {
   type NgramRecord,
@@ -34,6 +36,7 @@ export function createStore(now = Date.now()): ProfileStore {
     updatedAt: now,
     totals: { keystrokes: 0, runs: 0, samples: 0 },
     grams: {},
+    metrics: createMetrics(),
   };
 }
 
@@ -50,8 +53,26 @@ function createRecord(gram: string, n: NgramSize, now: number): NgramRecord {
     tSumSq: new Array<number>(n - 1).fill(0),
     recent: [],
     cursor: 0,
+    ewmaFast: 0,
+    ewmaSlow: 0,
     updated: now,
   };
+}
+
+/**
+ * How much of a new observation each trend mean absorbs.
+ *
+ * The fast mean turns over in roughly a dozen repetitions, the slow one in a
+ * few hundred, so the gap between them shows which direction you are moving.
+ */
+const EWMA_FAST = 0.2;
+const EWMA_SLOW = 0.03;
+
+function updateTrend(record: NgramRecord, value: number): void {
+  record.ewmaFast =
+    record.ewmaFast === 0 ? value : record.ewmaFast + EWMA_FAST * (value - record.ewmaFast);
+  record.ewmaSlow =
+    record.ewmaSlow === 0 ? value : record.ewmaSlow + EWMA_SLOW * (value - record.ewmaSlow);
 }
 
 /** Appends to a ring buffer, overwriting the oldest entry once it is full. */
@@ -117,6 +138,7 @@ export function applySample(
     record.tSumSq[i] = (record.tSumSq[i] ?? 0) + value * value;
   }
 
+  updateTrend(record, total);
   pushRecent(record, total, opts.recentWindow);
   store.totals.samples += 1;
 }
@@ -125,6 +147,8 @@ export interface ApplyBatch {
   samples: NgramSample[];
   keystrokes?: number;
   runs?: number;
+  /** Accuracy counters gathered alongside the timings. */
+  metrics?: Metrics;
 }
 
 /** Folds a batch of observations and prunes if the store outgrew its cap. */
@@ -137,6 +161,7 @@ export function applyBatch(
   for (const sample of batch.samples) {
     applySample(store, sample, opts, now);
   }
+  if (batch.metrics) mergeMetrics(store.metrics, batch.metrics);
   store.totals.keystrokes += batch.keystrokes ?? 0;
   store.totals.runs += batch.runs ?? 0;
   store.updatedAt = now;
@@ -170,6 +195,13 @@ export function pruneStore(
   return dropCount;
 }
 
+/** Averages two trend means, ignoring one that was never seeded. */
+function blendTrend(a: number, b: number): number {
+  if (a === 0) return b;
+  if (b === 0) return a;
+  return (a + b) / 2;
+}
+
 /** Merges `incoming` into `base`, summing moments and interleaving samples. */
 export function mergeStores(
   base: ProfileStore,
@@ -186,7 +218,11 @@ export function mergeStores(
       samples: base.totals.samples + incoming.totals.samples,
     },
     grams: {},
+    metrics: createMetrics(),
   };
+
+  mergeMetrics(merged.metrics, base.metrics);
+  mergeMetrics(merged.metrics, incoming.metrics);
 
   for (const [key, record] of Object.entries(base.grams)) {
     merged.grams[key] = {
@@ -214,6 +250,8 @@ export function mergeStores(
     existing.min = Math.min(existing.min, incomingRecord.min);
     existing.max = Math.max(existing.max, incomingRecord.max);
     existing.updated = Math.max(existing.updated, incomingRecord.updated);
+    existing.ewmaFast = blendTrend(existing.ewmaFast, incomingRecord.ewmaFast);
+    existing.ewmaSlow = blendTrend(existing.ewmaSlow, incomingRecord.ewmaSlow);
     for (let i = 0; i < existing.tSum.length; i++) {
       existing.tSum[i] = (existing.tSum[i] ?? 0) + (incomingRecord.tSum[i] ?? 0);
       existing.tSumSq[i] = (existing.tSumSq[i] ?? 0) + (incomingRecord.tSumSq[i] ?? 0);
