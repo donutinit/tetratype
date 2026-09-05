@@ -58,6 +58,17 @@ export function graphemes(input: string): string[] {
   return out;
 }
 
+/**
+ * True for a code point that modifies the character before it.
+ *
+ * Some layouts deliver a dead-key accent as its own input event instead of a
+ * precomposed letter, so the capture layer folds these into the previous
+ * keystroke rather than treating them as characters of their own.
+ */
+export function isCombiningMark(char: string): boolean {
+  return TRAILING_MARK.test(char);
+}
+
 /** True when `input` is exactly one user-perceived character. */
 export function isSingleGrapheme(input: string): boolean {
   return input.length > 0 && graphemes(input).length === 1;

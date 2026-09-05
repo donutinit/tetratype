@@ -1,5 +1,5 @@
 import { extractNgrams } from './ngram';
-import { isWhitespace, normalize } from './text';
+import { isCombiningMark, isWhitespace, normalize } from './text';
 import type { BreakReason, Keystroke, NgramSample } from './types';
 
 /** Input events the run tracker understands. */
@@ -48,6 +48,8 @@ const EMPTY: RunResult = { samples: [], runsClosed: 0 };
  */
 export class RunTracker {
   private buffer: Keystroke[] = [];
+  /** Leading keystrokes carried over from a trimmed run, already accounted for. */
+  private carry = 0;
   private options: RunOptions;
 
   constructor(options: Partial<RunOptions> = {}) {
@@ -81,14 +83,20 @@ export class RunTracker {
   /** Closes the open run and returns its n-grams. */
   flush(_reason: BreakReason = 'flush'): RunResult {
     if (this.buffer.length < 2) {
-      this.buffer = [];
+      this.reset();
       return EMPTY;
     }
     const samples = extractNgrams(this.buffer, {
       maxTransitionMs: this.options.breakOnPauseMs,
+      minEndIndex: this.carry,
     });
-    this.buffer = [];
+    this.reset();
     return { samples, runsClosed: 1 };
+  }
+
+  private reset(): void {
+    this.buffer = [];
+    this.carry = 0;
   }
 
   private onChar(rawChar: string, t: number): RunResult {
@@ -103,9 +111,18 @@ export class RunTracker {
       const delta = t - last.t;
       if (delta < 0 || delta > this.options.breakOnPauseMs) {
         const closed = this.flush('pause');
-        this.buffer.push({ char, t });
+        if (!isCombiningMark(char)) this.buffer.push({ char, t });
         return closed;
       }
+    }
+
+    if (isCombiningMark(char)) {
+      // A dead-key accent delivered separately: fold it into the letter it
+      // modifies and move that letter's timestamp to when it was completed.
+      if (!last) return EMPTY;
+      last.char = normalize(last.char + char);
+      last.t = t;
+      return EMPTY;
     }
 
     this.buffer.push({ char, t });
@@ -131,6 +148,7 @@ export class RunTracker {
     const overlap = this.buffer.slice(-(MAX_N - 1));
     const result = this.flush('overflow');
     this.buffer = overlap;
+    this.carry = overlap.length;
     return result;
   }
 }

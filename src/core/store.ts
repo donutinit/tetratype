@@ -75,6 +75,20 @@ function pushRecent(record: NgramRecord, value: number, window: number): void {
   }
 }
 
+/**
+ * Reads a ring buffer oldest-first.
+ *
+ * While the buffer is still filling, `cursor` sits past the last element and the
+ * values are already in order. Once it wraps, `cursor` points at the oldest
+ * value, so the two halves swap.
+ */
+export function readRecent(record: Pick<NgramRecord, 'recent' | 'cursor'>): number[] {
+  const { recent, cursor } = record;
+  if (recent.length === 0) return [];
+  if (cursor === 0 || cursor >= recent.length) return [...recent];
+  return [...recent.slice(cursor), ...recent.slice(0, cursor)];
+}
+
 /** Folds one observation into a record, in constant space. */
 export function applySample(
   store: ProfileStore,
@@ -207,8 +221,8 @@ export function mergeStores(
     // Keep the newest half of each side so the window stays representative.
     const half = Math.ceil(opts.recentWindow / 2);
     existing.recent = [
-      ...existing.recent.slice(-half),
-      ...incomingRecord.recent.slice(-half),
+      ...readRecent(existing).slice(-half),
+      ...readRecent(incomingRecord).slice(-half),
     ].slice(-opts.recentWindow);
     existing.cursor = existing.recent.length % Math.max(1, opts.recentWindow);
   }
