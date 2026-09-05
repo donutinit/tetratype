@@ -41,6 +41,34 @@ const WIDE_DELETE = new Set([
   'deleteEntireSoftLine',
 ]);
 
+/**
+ * Structural views of the DOM events this module consumes.
+ *
+ * Real `KeyboardEvent`, `InputEvent` and `CompositionEvent` objects satisfy
+ * these, so the content script passes them straight through — and tests can
+ * describe a keypress as a plain object instead of faking a DOM event.
+ */
+export interface KeyDownLike {
+  target: EventTarget | null;
+  timeStamp: number;
+  isComposing: boolean;
+  repeat: boolean;
+}
+
+export interface BeforeInputLike {
+  target: EventTarget | null;
+  timeStamp: number;
+  isComposing: boolean;
+  inputType: string;
+  data: string | null;
+}
+
+export interface CompositionLike {
+  target: EventTarget | null;
+  timeStamp: number;
+  data: string | null;
+}
+
 export interface CaptureSink {
   onSamples: (samples: NgramSample[], runs: number) => void;
   onKeystroke: () => void;
@@ -84,7 +112,7 @@ export class Capture {
     this.composing = false;
   }
 
-  handleKeyDown(event: KeyboardEvent): void {
+  handleKeyDown(event: KeyDownLike): void {
     if (!this.settings.capture || !isTypingInput(event.target)) return;
     if (event.isComposing) return;
     if (event.repeat) {
@@ -95,7 +123,7 @@ export class Capture {
     this.pendingKeyAt = event.timeStamp;
   }
 
-  handleBeforeInput(event: InputEvent): void {
+  handleBeforeInput(event: BeforeInputLike): void {
     if (!this.settings.capture || !isTypingInput(event.target)) return;
     if (this.composing || event.isComposing) return;
 
@@ -126,7 +154,7 @@ export class Capture {
     this.composing = true;
   }
 
-  handleCompositionEnd(event: CompositionEvent): void {
+  handleCompositionEnd(event: CompositionLike): void {
     this.composing = false;
     if (!this.settings.capture || !isTypingInput(event.target)) return;
     this.commitText(event.data ?? '', event.timeStamp);
