@@ -7,7 +7,16 @@
  * feature rather than producing wrong data.
  */
 
-/** The hidden input Monkeytype focuses while a test is running. */
+/*
+ * The structure this module relies on, as Monkeytype serves it:
+ *
+ *   div#typingTest > div#wordsWrapper > textarea#wordsInput
+ *                                     > div#words > div.word > letter
+ *
+ * Only the ids and the letter classes are load-bearing; the nesting is not.
+ */
+
+/** The offscreen textarea Monkeytype focuses while a test is running. */
 const WORDS_INPUT = '#wordsInput';
 /** Container for the test itself, used to scope the fallback check. */
 const TEST_CONTAINER = '#typingTest';

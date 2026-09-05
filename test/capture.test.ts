@@ -3,7 +3,7 @@ import { Capture } from '../src/content/capture';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/settings';
 import type { NgramSample } from '../src/core/types';
 
-let input: HTMLInputElement;
+let input: HTMLTextAreaElement;
 let samples: NgramSample[];
 let keystrokes: number;
 let runs: number;
@@ -11,12 +11,16 @@ let runs: number;
 function mount(): void {
   document.body.innerHTML = `
     <div id="typingTest">
-      <input id="wordsInput" />
-      <div id="words"><div class="word active"></div></div>
+      <div id="wordsWrapper">
+        <textarea id="wordsInput" autocomplete="off"></textarea>
+        <div id="words">
+          <div class="word active"></div>
+        </div>
+      </div>
     </div>
     <input id="password" type="password" />
   `;
-  input = document.getElementById('wordsInput') as HTMLInputElement;
+  input = document.getElementById('wordsInput') as HTMLTextAreaElement;
 }
 
 function makeCapture(overrides: Partial<Settings> = {}): Capture {
