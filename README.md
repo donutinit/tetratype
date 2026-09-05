@@ -17,6 +17,9 @@ about 1.4 seconds per thousand characters.
 ## Contents
 
 - [What it measures](#what-it-measures)
+- [What your hands are doing](#what-your-hands-are-doing)
+- [Mistakes](#mistakes)
+- [When you break down](#when-you-break-down)
 - [Install](#install)
 - [Reading the dashboard](#reading-the-dashboard)
 - [How capture works](#how-capture-works)
@@ -62,6 +65,10 @@ Per n-gram, Tetratype tracks:
 | **Best / Worst** | Fastest and slowest observations ever recorded. |
 | **ms/step** | Median divided by the number of transitions, so n-grams of different lengths are comparable. |
 | **Var** | Coefficient of variation (σ/μ). High means erratic — you *can* type it fast, but you don't reliably. |
+| **Shape** | What the n-gram asks of your hands: same finger, scissor, roll, alternating, dead key. |
+| **Miss** | How often you fumble it — the chance of going wrong somewhere inside the n-gram. |
+| **Trend** | Recent speed against your longer-run average. Down is progress. |
+| **Context** | Extra milliseconds a pair costs *inside* longer n-grams versus on its own. |
 | **Impact** | Time lost to this n-gram, scaled 0–100 against the worst of its length. |
 
 ### The impact score
@@ -88,6 +95,72 @@ Two headline numbers sit on top of the dashboard:
 - **Ceiling WPM** — the speed you would reach if *every* bigram ran at your own baseline.
 
 The gap between them is the size of the prize.
+
+---
+
+## What your hands are doing
+
+A number tells you `br` is slow. It cannot tell you *why*. Tetratype maps every character
+onto a hand, a finger and a row, so each transition gets named:
+
+| Shape | Meaning |
+| ----- | ------- |
+| **same finger** | Both keys belong to one finger, which has to leave and come back. The classic bottleneck. |
+| **scissor** | Neighbouring fingers forced onto rows two apart — an awkward stretch. |
+| **inward roll** / **outward roll** | Same hand, different fingers, moving towards or away from the index. Inward rolls are usually fastest. |
+| **alternating** | Hands take turns. Normally the easiest thing you can type. |
+| **redirect** | A same-hand roll that reverses direction partway through, killing its momentum. |
+| **double tap** | The same key twice. |
+| **dead key** | The character needs an accent key first, so it costs two presses rather than one. |
+
+Expand any row and each internal jump is labelled individually, so a slow tetragram resolves
+into *which* movement is the problem rather than a single aggregate number.
+
+Layouts supported: **QWERTY (Spanish)** — the default, since `ñ` and the dead-key accents are
+first-class here — plus QWERTY (US), Colemak and Dvorak. Change it in Settings; it only
+affects analysis, never capture.
+
+Dead keys are modelled honestly. Typing `á` is two presses, so the transition *into* it
+includes reaching for `´`. It is genuinely more expensive than `a` and is not compared
+against it as though they were the same motion.
+
+---
+
+## Mistakes
+
+Tetratype reads the character the test is waiting for, during `beforeinput` — before
+Monkeytype has processed your keystroke. That means it knows what you owed and what you
+produced in the same instant, with no lag, and builds a **confusion table**: not just
+"you got that wrong" but `r → t`, 15 times, same finger, 620 ms to recover.
+
+What it tracks:
+
+- **Error rate per character and per transition**, which joins straight onto the bigram
+  table — so an n-gram can be slow, unreliable, or both, and you can see which.
+- **Recovery cost.** A typo does not cost you one keystroke; it costs the fumble, the
+  backspace, and the retype. That is usually 500–900 ms, and it is normally larger than the
+  latency excess you were optimising. A correction only counts once you have actually
+  rewound over the mistake — typing on past an error and meeting the same letter later in
+  the word is not a fix, and is counted as **left standing** instead.
+- **What the two characters have in common physically**, so a slip onto the same finger
+  reads differently from one onto the mirrored key on the other hand.
+
+If Monkeytype's markup is not recognised, this degrades to counting errors through the
+site's own `.incorrect` classes — a keystroke behind, and without naming the confusion —
+rather than guessing.
+
+---
+
+## When you break down
+
+Three curves, all built from bounded counters:
+
+- **Speed against accuracy.** Error rate against how fast the keys arrived. It answers the
+  only question that matters when you are pushing: *how hard can I push before it costs me?*
+  The dashboard names the fastest band where you still hold accuracy.
+- **Within a session.** Speed and accuracy against how far into a sitting you are, so
+  warm-up and fatigue separate. A session ends after five minutes away from the keyboard.
+- **Day by day.** WPM and accuracy over the last 180 days.
 
 ---
 
@@ -144,8 +217,12 @@ or run [Firefox Developer Edition](https://www.mozilla.org/firefox/developer/) w
 - The three panels at the top surface the worst offenders by speed, by consistency and by
   impact, following whichever tab you have selected.
 
+Below the table: the confusion list, the characters you miss most, and the three curves.
+**Export analysis** produces the whole thing as one Markdown file.
+
 Everything except the n-gram cap and sample window takes effect immediately; those two
-apply to newly recorded data.
+apply to newly recorded data. Changing the keyboard layout only re-labels the analysis — it
+never touches what was captured.
 
 ---
 
@@ -227,6 +304,13 @@ Tetratype is designed so that there is nothing to leak.
   persisted per n-gram is a count, four running sums, a min, a max, and a bounded ring of
   recent durations. The n-gram *label* — `pa`, `año` — is the only text kept, and only for
   combinations you typed at least once.
+- **Mistake tracking reads one character of lookahead.** To name a typo rather than merely
+  count it, Tetratype reads the single character the test is waiting for — the one you were
+  about to type anyway — and stores it only as part of an `expected → typed` pair. It never
+  reads the word, the sentence or the rest of the test. Single-character pairs cannot be
+  reassembled into text. If you would rather it read nothing from the page at all, turn off
+  **Track mistakes** in Settings: error detection then falls back to Monkeytype's own
+  markup, and no confusion data is collected.
 - **Only the typing input is read.** The capture layer accepts events from Monkeytype's
   words input, or from an input inside the typing-test container. Every other field on the
   site — the login form, the password box, the search bar — fails that check and is never
@@ -274,6 +358,21 @@ write every few seconds, not one per keystroke. The dashboard shows the current 
 
 Both the window and the cap are adjustable in Settings.
 
+Trend is two more numbers, not a time series: a fast and a slow exponentially weighted mean,
+whose difference says which way an n-gram is moving.
+
+The accuracy data is the same idea — bounded counter maps, never event logs:
+
+| | Bound |
+| --- | --- |
+| Confusion pairs (`expected → typed`) | 2 000, rarest pruned first |
+| Per-character and per-transition attempt counts | one small record each |
+| Speed bands | 20 fixed buckets of 25 ms |
+| Session-progress bands | 12 fixed buckets of 250 keystrokes |
+| Daily history | 180 days |
+
+None of it grows with how long you use the extension.
+
 ---
 
 ## Export formats
@@ -301,103 +400,131 @@ ms_per_transition,excess_ms,ms_lost,impact,transitions,last_seen
 ```
 
 The `transitions` column packs the internal breakdown into one field:
-`p>a:95.10|a>r:210.40|r>a:88.20`.
+`p>a:95.10|a>r:210.40|r>a:88.20`. Alongside the timings each row also carries `shape`,
+`same_finger`, `row_jump`, `dead_keys`, `miss_rate`, `miss_attempts`, `trend_ms` and
+`context_ms`.
+
+**Analysis report** — one Markdown file with everything in it: the headline numbers, the
+n-gram table, the confusion table, the characters you miss most, and all three curves. This
+is the one to hand to a language model; see the next section.
 
 ---
 
 ## Feeding it to an LLM
 
-The CSV export is designed to be handed to a language model, which can read the transition
-breakdowns and turn them into a diagnosis and a practice wordlist you can paste straight
-back into Monkeytype.
+Click **Export analysis** in the dashboard. That produces one Markdown file holding the
+n-gram table, the confusion table, the characters you miss most, and all three curves —
+already labelled, so you do not have to explain the columns.
 
-**Export it first:** in the dashboard, set **Min samples** to `20` or higher, then click
-**Export CSV**. That box is the only filter the export honours — the tab and the *Contains*
-field do not narrow it, so you always get bigrams, trigrams and tetragrams in one file.
-Raising the threshold matters: an unfiltered profile can run to thousands of rows, most of
-them too thin to mean anything, and it will crowd out the model's context for no benefit.
+Set **Min samples** to `20` or higher first. It is the only filter the export honours, and
+an unfiltered profile runs to thousands of rows that are too thin to mean anything.
 
-Then paste the prompt below, replace the language, and paste the CSV underneath it.
+Then paste the prompt below, replace the language, and paste the report underneath it.
 
 ```text
-You are analysing a Tetratype export: per-n-gram keystroke latency measured from my own
+You are analysing a Tetratype report: keystroke latency and accuracy measured from my own
 typing on Monkeytype. Tell me what to practise, and build me a practice wordlist.
 
-## The data
+## What the report contains
 
-CSV, one row per n-gram:
+An overview, then an n-gram table as CSV, a table of my mistakes as CSV, the characters I
+miss most, and three curves: speed against accuracy, position within a session, and day by
+day.
 
-  n                  n-gram length (2 = bigram, 3 = trigram, 4 = tetragram)
-  ngram              the literal characters
-  samples            how many times I typed it
-  median_ms          median total duration, over a window of recent observations
-  mean_ms            lifetime mean
-  p90_ms             90th percentile - my bad reps
-  min_ms / max_ms    fastest and slowest ever recorded
-  sd_ms              standard deviation
-  cv                 sd / mean. Low = reliable, high = erratic
-  ms_per_transition  median / (n - 1), so lengths are comparable
-  excess_ms          how much slower than my own baseline, per occurrence
-  ms_lost            excess_ms x samples: total time this has cost me
-  impact             ms_lost rescaled 0-100 within each n
-  transitions        per-jump means, e.g. p>a:95.10|a>r:210.40|r>a:88.20
-  last_seen          ISO timestamp of the most recent observation
+Columns in the n-gram CSV:
 
-Timings run keydown to keydown, so a value is the time to move between the keys of the
-n-gram, never the time to press the first one. The baseline behind excess_ms is the 20th
-percentile of my own bigram speeds, so everything is measured against me, not a norm.
+  n / ngram / samples    length, the characters, how many times I typed it
+  median_ms              median total duration, over a window of recent observations
+  mean_ms / p90_ms       lifetime mean, and my bad reps
+  min_ms / max_ms        fastest and slowest ever recorded
+  sd_ms / cv             spread, and spread relative to the mean
+  ms_per_transition      median / (n - 1), so lengths are comparable
+  excess_ms              how much slower than my own baseline, per occurrence
+  ms_lost                excess_ms x samples: total time this has cost me
+  impact                 ms_lost rescaled 0-100 within each n
+  shape                  what it asks of my hands: same finger, scissor, roll, redirect,
+                         alternating, dead key
+  same_finger            same-finger transitions inside the n-gram
+  row_jump / dead_keys   largest row change; extra presses for accents
+  miss_rate              chance I fumble it somewhere (blank if untracked)
+  trend_ms               recent speed minus long-run average; negative means improving
+  context_ms             extra ms this pair costs inside longer n-grams than alone
+  transitions            per-jump means, e.g. p>a:95.10|a>r:210.40|r>a:88.20
+
+Columns in the mistakes CSV:
+
+  expected / typed       what the test wanted, and what I produced
+  count / share          how often, and as a fraction of all my mistakes
+  relation               how the two keys relate physically
+  mean_recovery_ms       time from the slip to the right character landing
+  ms_lost                total time this one confusion has cost
+  uncorrected            times I typed on past it instead of fixing it
+
+Timings run keydown to keydown, so a value is the time to move between keys, never the time
+to press the first one. The baseline behind excess_ms is the 20th percentile of my own
+bigram speeds, so everything is measured against me, not a norm.
 
 ## How to read it
 
 - Ignore rows with few samples. They are noise however bad they look.
 - Rank by impact and ms_lost, not by median. Something I type constantly and am slightly
   slow at costs me more than something I am dreadful at but type once a week.
-- Separate two different problems:
-    - High excess_ms, low cv -> a real motor weakness. Worth drilling.
-    - High cv with a good min_ms -> I can already do it fast, just not reliably. Usually
-      rhythm, or an awkward transition I sometimes fumble rather than one I cannot make.
-- Use the transitions column. This is the point of the export. A slow tetragram is
-  normally one bad jump, not four mediocre ones - say which jump, and check whether that
-  same pair is also slow in its own bigram row.
-- Cross-check context. If a bigram is fast alone but slow inside the longer n-grams that
-  contain it, the pair is fine and the problem is what surrounds it. Say so.
-- Never state a number that is not in the data, and never guess at my layout, my fingers
-  or my hardware. Work from the rows.
+- Weigh mistakes against slowness properly. A confusion with a large ms_lost may be
+  costing me more than any slow n-gram, because a typo costs the fumble plus the backspace
+  plus the retype. Compare the two directly and tell me which pile is bigger.
+- Separate three different problems, and say which each target is:
+    - High excess_ms, low cv, awkward shape -> a real motor weakness. Drill it.
+    - High cv with a good min_ms -> I can already do it fast, just not reliably.
+    - High miss_rate -> an accuracy problem, which practising faster will make worse.
+- Use the shape column rather than guessing at my fingers. If the slow n-grams cluster on
+  same-finger or scissor movements, say so and name the finger.
+- Use the transitions column. A slow tetragram is normally one bad jump, not four mediocre
+  ones - say which jump, and check whether that pair is also slow in its own bigram row.
+- Use context_ms. A pair that is fine alone but slow inside longer n-grams is a sequencing
+  problem, not a pair problem.
+- Read the speed-against-accuracy curve before telling me to go faster. If my error rate
+  climbs sharply below some interval, say where that line is and what it means for practice.
+- Check the session curve. If accuracy falls off after some number of keystrokes, tell me
+  to stop there rather than pushing through.
+- Use trend_ms to avoid prescribing what I am already fixing.
+- Never state a number that is not in the report, and never guess at my hardware.
 
 ## What to give me
 
-1. Diagnosis, at most 10 lines. What is actually holding me back, grouped by cause
-   (same-finger jumps, awkward rolls, a weak finger, accented characters - whatever the
-   data shows). Cite the rows you read it from.
+1. Diagnosis, at most 12 lines, grouped by cause. Cite the rows you read it from, and say
+   plainly whether my main problem is speed, consistency, or accuracy.
 
-2. A table of 10-15 n-grams worth practising, most valuable first. For each: samples,
-   ms_per_transition, cv, impact, which internal jump is the problem, and one line on why
-   it earned its place.
+2. A table of 10-15 targets, most valuable first. For each: samples, ms_per_transition, cv,
+   miss_rate, shape, impact, which internal jump is the problem, and one line on why it
+   earned its place.
 
 3. A practice wordlist for Monkeytype:
    - Real words in LANGUAGE. No invented words, no nonsense syllables.
-   - Every n-gram from the table appears at least four times across the list.
+   - Every target from the table appears at least four times across the list.
    - Weight by impact: the worst offenders should recur most often.
    - 150-200 words, lowercase, single spaces, one continuous block, no punctuation and no
      line breaks, so I can paste it into Monkeytype custom text unchanged.
    - Keep accents and n-tilde exactly as the words require. Do not strip them.
-   - Vary word length, and do not park every target n-gram at the start of a word.
+   - Vary word length, and do not park every target at the start of a word.
    - Put the wordlist in its own code block, with nothing else inside it.
 
-4. A short paragraph on what to pay attention to while drilling, and what would count as
-   improvement in a re-export.
+4. A short paragraph on how to drill: what pace to hold given my accuracy curve, how long a
+   session should run given my fatigue curve, and what would count as improvement in a
+   re-export.
 ```
 
-Replace `LANGUAGE` with the language you actually type in — `Spanish`, `English`, or both if
-you switch between them. Ask for the accented characters to be kept; a model told only
-"Spanish" will sometimes strip them, and `ñ` and `á` are exactly the keys worth measuring.
+Replace `LANGUAGE` with the language you actually type in. Ask for accented characters to be
+kept; a model told only "Spanish" will sometimes strip them, and `ñ` and `á` are exactly the
+keys worth measuring.
 
-Re-export after a week of practice and give the model both files to compare. `min_ms` moving
-before `median_ms` is the normal shape of progress: the motion becomes available to you
-before it becomes reliable.
+Re-export after a week and give the model both files to compare. `min_ms` moving before
+`median_ms` is the normal shape of progress: the motion becomes available to you before it
+becomes reliable. `trend_ms` going negative on your targets is the same signal, already
+computed.
 
-The JSON export is for backup and merging profiles, not for analysis — it carries the raw
-ring buffers and is far larger with nothing extra a model can use.
+The CSV export is still there if you want only the n-gram table for a spreadsheet. The JSON
+export is for backup and merging profiles, not for analysis — it carries the raw ring
+buffers and is far larger with nothing extra a model can use.
 
 ---
 
@@ -406,7 +533,7 @@ ring buffers and is far larger with nothing extra a model can use.
 ```bash
 bun install
 bun run dev        # rebuild dist/ on change
-bun test           # 174 tests
+bun test           # 276 tests
 bun run typecheck  # tsc --noEmit
 bun run lint       # biome
 bun run format     # biome --write
@@ -423,7 +550,11 @@ src/
     run.ts         keystrokes → clean runs (the sequence-breaking rules)
     ngram.ts       runs → n-gram observations
     store.ts       bounded aggregation, pruning, merging
-    stats.ts       quantiles, baseline, impact scoring
+    stats.ts       quantiles, baseline, impact scoring, context penalty
+    layout.ts      hands, fingers, rows — what a movement actually is
+    metrics.ts     bounded accuracy counters: confusions, curves, sessions
+    insights.ts    ordered views over those counters
+    report.ts      the Markdown analysis bundle
     text.ts        NFC normalization and grapheme splitting
     timing.ts      clock resolution probe
     serialize.ts   JSON import/export and CSV
@@ -463,6 +594,21 @@ question, and a ring buffer answers it exactly rather than approximately.
 happened; `beforeinput` is what actually got produced, after dead keys and composition. Each
 event answers the question it is good at.
 
+**Expected characters are read ahead, not behind.** Monkeytype renders letters you have not
+reached yet with no state class, and `beforeinput` fires before the site processes your
+keystroke — so the first unclassed letter is exactly what you are about to type. Reading the
+letter *under* the cursor instead would be wrong for anyone with `indicateTypos` set to
+`replace`, because that renders what you typed rather than what you owed.
+
+**A correction requires a rewind.** Meeting the same letter later in a word is not a fix, so
+a pending mistake only closes as corrected once a deletion has taken the cursor back over
+it. Everything else is counted as left standing, which is a different habit worth seeing.
+
+**Keyboard geometry is derived, not tabulated.** A layout is its four rows; hand, finger and
+stretch fall out of column position, with the number row offset by one key. That means
+adding a layout is four strings, and there is one rule to get right rather than a hundred
+hand-written entries.
+
 **The DOM contract is one small file.** Monkeytype can change its markup at any time.
 Everything that depends on it lives in `src/content/monkeytype.ts`, and each check degrades
 to "don't know" — which disables a feature rather than recording wrong data.
@@ -482,6 +628,14 @@ to "don't know" — which disables a feature rather than recording wrong data.
   involves Shift.
 - **Error detection lags by one keystroke**, since Monkeytype updates its markup after
   handling the input. The mistyped character is still removed correctly.
+- **Accuracy tracking depends on Monkeytype's letter markup.** If it changes, mistake
+  detection falls back to the site's `.incorrect` classes, and confusion pairs stop being
+  collected. Timings are unaffected.
+- **The shape analysis assumes standard touch typing** on the layout you select, with the
+  usual finger assignments and a staggered board. If you use a different fingering or an
+  ortholinear keyboard, the labels will be wrong even though the timings are right.
+- **Uncorrected mistakes have no recovery time**, by definition — they are counted
+  separately rather than folded into the average.
 - **Not published on Mozilla Add-ons.** Temporary installation only, for now.
 
 ---

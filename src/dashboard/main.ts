@@ -366,9 +366,10 @@ function renderSpeedChart(): void {
       curve.length > 0 ? 'Your error rate is above 5% in every speed band measured so far.' : '';
     return;
   }
-  note.innerHTML =
-    `Bars are error rate per inter-key interval, in milliseconds. You hold accuracy down to ` +
-    `<b>${cliff.fromMs}–${cliff.toMs} ms</b> between keys; below that the miss rate climbs.`;
+  note.innerHTML = [
+    'Bars are error rate per inter-key interval, in milliseconds. You hold accuracy down to',
+    `<b>${cliff.fromMs}–${cliff.toMs} ms</b> between keys; below that the miss rate climbs.`,
+  ].join(' ');
 }
 
 function renderFatigueChart(): void {

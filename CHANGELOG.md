@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-09-05
+
+Mistakes, hands, and time.
+
+### Added
+
+- **Keyboard layout modelling.** Every transition is classified as same-finger, scissor,
+  inward or outward roll, alternating, redirect, double tap or dead key, from the layout you
+  select — QWERTY (Spanish, the default), QWERTY (US), Colemak or Dvorak. Shown per n-gram
+  and per internal jump.
+- **Mistake tracking.** Reads the character the test is waiting for during `beforeinput`,
+  so a typo is named rather than merely counted: an `expected → typed` confusion table with
+  counts, physical relation, and how the mistake was resolved.
+- **Recovery cost.** Milliseconds from a slip to the right character landing, counted only
+  once the cursor has actually rewound over the mistake. Mistakes typed straight past are
+  counted separately as left standing.
+- **Error rate per character and per transition**, joined onto the n-gram table as a miss
+  rate, plus a most-error-prone highlight panel.
+- **Speed against accuracy curve**, naming the fastest interval band where accuracy holds.
+- **Within-session curve** for warm-up and fatigue, with sessions split after five idle
+  minutes.
+- **Daily history** of WPM and accuracy over the last 180 days.
+- **Per-n-gram trend**, from a fast and a slow exponentially weighted mean.
+- **Context penalty**: how much more a pair costs inside longer n-grams than on its own.
+- **Analysis export**: one Markdown file with every table and curve, built to hand to a
+  language model. The README carries a prompt written against it.
+- Settings for keyboard layout and for turning mistake tracking off.
+
+### Changed
+
+- A detected mistake now breaks the run immediately instead of a keystroke later, so the
+  clean prefix is kept and the wrong keystroke never enters a timing.
+- The CSV export gained `shape`, `same_finger`, `row_jump`, `dead_keys`, `miss_rate`,
+  `miss_attempts`, `trend_ms` and `context_ms`.
+- Store schema is version 2. Version 1 profiles import unchanged; the new fields start empty.
+
+[0.2.0]: https://github.com/donutinit/tetratype/releases/tag/v0.2.0
+
 ## [0.1.0] — 2026-09-05
 
 First release.
