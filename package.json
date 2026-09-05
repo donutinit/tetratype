@@ -24,7 +24,5 @@
     "@types/firefox-webext-browser": "^120.0.4",
     "typescript": "^5.7.2"
   },
-  "trustedDependencies": [
-    "@biomejs/biome"
-  ]
+  "trustedDependencies": ["@biomejs/biome"]
 }
