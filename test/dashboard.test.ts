@@ -66,6 +66,17 @@ function mountDashboard(): void {
     runtime: {
       sendMessage: async (message: unknown) => {
         sent.push(message);
+        if ((message as { type: string }).type === 'getSnapshot') {
+          return {
+            ok: true,
+            type: 'snapshot',
+            snapshot: {
+              store: stored[STORAGE_KEYS.store],
+              settings: stored[STORAGE_KEYS.settings],
+              meta: stored[STORAGE_KEYS.meta],
+            },
+          };
+        }
         return { ok: true, type: 'settings', settings: DEFAULT_SETTINGS };
       },
       getManifest: () => ({ version: '0.1.0' }),
