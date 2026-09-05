@@ -15,17 +15,21 @@ const OPTS: StoreOptions = { recentWindow: 40, maxGrams: 12000 };
 class Session {
   readonly store: ProfileStore = createStore(0);
   private capture: Capture;
-  private input: HTMLInputElement;
+  private input: HTMLTextAreaElement;
   private clock = 1000;
 
   constructor(settings: Partial<Settings> = {}) {
     document.body.innerHTML = `
       <div id="typingTest">
-        <input id="wordsInput" />
-        <div id="words"><div class="word active"></div></div>
+        <div id="wordsWrapper">
+          <textarea id="wordsInput" autocomplete="off"></textarea>
+          <div id="words">
+            <div class="word active"></div>
+          </div>
+        </div>
       </div>
     `;
-    this.input = document.getElementById('wordsInput') as HTMLInputElement;
+    this.input = document.getElementById('wordsInput') as HTMLTextAreaElement;
     this.capture = new Capture(
       { ...DEFAULT_SETTINGS, ...settings },
       {

@@ -5,10 +5,12 @@ import { activeWord, countWrongLetters, isTypingInput } from '../src/content/mon
 function mountTest(): void {
   document.body.innerHTML = `
     <div id="typingTest">
-      <input id="wordsInput" autocomplete="off" />
-      <div id="words">
-        <div class="word"><letter class="correct">l</letter></div>
-        <div class="word active"><letter class="correct">c</letter></div>
+      <div id="wordsWrapper">
+        <textarea id="wordsInput" autocomplete="off"></textarea>
+        <div id="words">
+          <div class="word"><letter class="correct">l</letter></div>
+          <div class="word active"><letter class="correct">c</letter></div>
+        </div>
       </div>
     </div>
     <form id="login">
