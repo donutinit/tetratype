@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.1] — 2026-09-06
 
 ### Added
 
@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - `build:zip` is now `build:xpi`, and artefacts are named with the manifest version.
+
+[0.2.1]: https://github.com/donutinit/tetratype/releases/tag/v0.2.1
 
 ## [0.2.0] — 2026-09-05
 
