@@ -171,9 +171,10 @@ loaded until you close the browser.
 
 **Requirements:** Firefox or LibreWolf 115+.
 
-Either download `tetratype.zip` from the
-[latest release](https://github.com/donutinit/tetratype/releases/latest) and unzip it, or
-build it yourself with [Bun](https://bun.sh):
+Either download from the
+[latest release](https://github.com/donutinit/tetratype/releases/latest) — `tetratype-<version>.zip`
+to unpack, or `tetratype-<version>.xpi` to install directly — or build it yourself with
+[Bun](https://bun.sh):
 
 ```bash
 git clone https://github.com/donutinit/tetratype.git
@@ -199,10 +200,38 @@ Data appears within a few seconds of typing. The dashboard is also reachable fro
 
 ### Keeping it installed permanently
 
-Temporary loading is the intended flow for now. If you want it to survive restarts, you can
-build a signed XPI through [Mozilla's self-distribution flow](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/),
-or run [Firefox Developer Edition](https://www.mozilla.org/firefox/developer/) with
-`xpinstall.signatures.required` set to `false` in `about:config`.
+Temporary loading is the intended flow, and the one that always works. To make it survive a
+browser restart you need an `.xpi`, and Firefox will only install one permanently if it is
+**signed**.
+
+**Unsigned `.xpi`.** Every release carries one. It installs in builds that do not enforce
+signatures — Firefox Developer Edition, Nightly, ESR, and most community builds — after
+setting `xpinstall.signatures.required` to `false` in `about:config`. Release Firefox
+ignores that setting and will refuse the file. Whether your LibreWolf honours it depends on
+how that build was compiled; try it, and fall back to `about:debugging` if it is rejected.
+
+**Signed `.xpi`.** Mozilla will sign a build for *self-distribution* without listing it on
+addons.mozilla.org. That is the `unlisted` channel: the file is signed and handed back to
+you, and nothing appears in the public directory. A signed build installs in ordinary
+Firefox and survives restarts.
+
+To have CI do it, create API credentials at
+[addons.mozilla.org/developers/addon/api/key](https://addons.mozilla.org/en-US/developers/addon/api/key/)
+and add them as repository secrets:
+
+| Secret | Value |
+| ------ | ----- |
+| `AMO_API_KEY` | the JWT issuer |
+| `AMO_API_SECRET` | the JWT secret |
+
+The release workflow picks them up on the next tag and attaches
+`tetratype-<version>-signed.xpi` alongside the unsigned build. Without the secrets it skips
+signing silently and the release is unchanged.
+
+Signing does upload your code to Mozilla for review by their automated scanner, even on the
+`unlisted` channel. It is not publication, but it is not nothing — decide accordingly.
+
+Locally, `bun run build:xpi` produces both files in `web-ext-artifacts/`.
 
 ---
 
@@ -538,7 +567,7 @@ bun run typecheck  # tsc --noEmit
 bun run lint       # biome
 bun run format     # biome --write
 bun run build      # unpacked extension into dist/
-bun run build:zip  # plus a zip in web-ext-artifacts/
+bun run build:xpi  # plus .xpi and .zip in web-ext-artifacts/
 bun run check      # everything CI runs
 ```
 

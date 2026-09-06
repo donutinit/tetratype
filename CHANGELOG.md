@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Releases now carry an installable `tetratype-<version>.xpi` alongside the zip, built
+  automatically by CI. `bun run build:xpi` does the same locally.
+- Optional Mozilla signing for self-distribution, on the `unlisted` channel, gated on the
+  `AMO_API_KEY` and `AMO_API_SECRET` repository secrets. Without them the release is
+  unchanged.
+
+### Changed
+
+- `build:zip` is now `build:xpi`, and artefacts are named with the manifest version.
+
 ## [0.2.0] — 2026-09-05
 
 Mistakes, hands, and time.

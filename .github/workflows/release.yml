@@ -11,6 +11,8 @@ jobs:
   release:
     name: Build and attach the extension
     runs-on: ubuntu-latest
+    env:
+      AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +28,7 @@ jobs:
         run: bun run check
 
       - name: Package
-        run: bun run build:zip
+        run: bun run build:xpi
 
       # Hand-written notes live in .github/release-notes/<tag>.md when a release
       # deserves them; otherwise GitHub generates them from the commit log.
@@ -42,9 +44,37 @@ jobs:
             echo "generate=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Signing is optional. Set the AMO_API_KEY and AMO_API_SECRET repository
+      # secrets to get an installable build; without them the release still
+      # ships the unsigned .xpi, which loads through about:debugging.
+      #
+      # The channel is `unlisted`: Mozilla signs the file for self-distribution
+      # and does not publish it on addons.mozilla.org.
+      - name: Sign for self-distribution
+        id: sign
+        if: env.AMO_API_KEY != ''
+        env:
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          bunx --bun web-ext sign \
+            --source-dir dist \
+            --artifacts-dir web-ext-artifacts/signed \
+            --channel unlisted \
+            --api-key "$AMO_API_KEY" \
+            --api-secret "$AMO_API_SECRET"
+          signed=$(find web-ext-artifacts/signed -name '*.xpi' | head -1)
+          if [ -n "$signed" ]; then
+            mv "$signed" "web-ext-artifacts/signed/tetratype-${GITHUB_REF_NAME#v}-signed.xpi"
+          fi
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          files: web-ext-artifacts/tetratype.zip
+          files: |
+            web-ext-artifacts/*.xpi
+            web-ext-artifacts/*.zip
+            web-ext-artifacts/signed/*.xpi
+          fail_on_unmatched_files: false
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.generate }}
