@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
-    "build:zip": "bun run scripts/build.ts --zip",
+    "build:xpi": "bun run scripts/build.ts --xpi",
     "dev": "bun run scripts/build.ts --watch",
     "test": "bun test",
     "typecheck": "tsc --noEmit",

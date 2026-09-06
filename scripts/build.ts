@@ -73,22 +73,43 @@ async function build(): Promise<void> {
   console.log(`built dist/ — ${kb} kB of JS in ${Date.now() - started} ms`);
 }
 
-async function zip(): Promise<void> {
+/** Reads the version the manifest declares, so artefact names match the build. */
+async function manifestVersion(): Promise<string> {
+  const manifest = (await Bun.file(join(SRC, 'manifest.json')).json()) as { version: string };
+  return manifest.version;
+}
+
+/**
+ * Packages `dist/` for distribution.
+ *
+ * A Firefox add-on file is an ordinary ZIP with a different extension, so both
+ * come out of one archive. The `.xpi` is what you install; the `.zip` is for
+ * unpacking and loading temporarily through about:debugging.
+ */
+async function pack(): Promise<void> {
   const out = join(ROOT, 'web-ext-artifacts');
   await mkdir(out, { recursive: true });
-  const target = join(out, 'tetratype.zip');
-  await rm(target, { force: true });
-  const proc = Bun.spawn(['zip', '-r', '-q', target, '.'], {
+
+  const version = await manifestVersion();
+  const xpi = join(out, `tetratype-${version}.xpi`);
+  const zip = join(out, `tetratype-${version}.zip`);
+  await Promise.all([rm(xpi, { force: true }), rm(zip, { force: true })]);
+
+  const proc = Bun.spawn(['zip', '-r', '-q', '-X', xpi, '.'], {
     cwd: DIST,
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   if ((await proc.exited) !== 0) throw new Error('zip failed (is the `zip` command installed?)');
-  console.log(`packaged ${target}`);
+
+  await Bun.write(zip, Bun.file(xpi));
+  const size = (Bun.file(xpi).size / 1024).toFixed(1);
+  console.log(`packaged ${xpi} (${size} kB)`);
+  console.log(`packaged ${zip}`);
 }
 
 await build();
 
-if (args.has('--zip')) await zip();
+if (args.has('--zip') || args.has('--xpi')) await pack();
 
 if (watch) {
   const { watch: fsWatch } = await import('node:fs');
