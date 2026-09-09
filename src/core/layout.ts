@@ -145,6 +145,8 @@ export interface Layout {
   name: string;
   keys: Map<string, KeyPos>;
   composed: Map<string, [string, string]>;
+  /** Accent keys: pressed on their own they emit nothing and wait for a letter. */
+  deadKeys: Set<string>;
 }
 
 const cache = new Map<LayoutId, Layout>();
@@ -162,11 +164,13 @@ export function getLayout(id: LayoutId): Layout {
     });
   });
 
+  const composed = new Map(Object.entries(spec.composed ?? {}));
   const layout: Layout = {
     id,
     name: spec.name,
     keys,
-    composed: new Map(Object.entries(spec.composed ?? {})),
+    composed,
+    deadKeys: new Set([...composed.values()].map(([dead]) => dead)),
   };
   cache.set(id, layout);
   return layout;

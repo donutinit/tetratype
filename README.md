@@ -274,7 +274,8 @@ happens:
 
 Timestamps come from `keydown`, and a character is only recorded when a matching
 `beforeinput` confirms what it produced within 150 ms. That pairing is what makes dead keys
-and IME composition come out right.
+and IME composition come out right: the accent press and the letter press each keep their
+own timestamp.
 
 ---
 
@@ -291,8 +292,13 @@ first-class characters rather than edge cases.
   one timestamp rather than a stream of intermediate states.
 - **N-grams are split on grapheme boundaries** (via `Intl.Segmenter`, with a fallback), so
   the transitions of `año` are `a→ñ` and `ñ→o` — never a stray combining mark on its own.
-- **Dead-key time is charged to the accented character.** Typing `á` means pressing two
-  keys, so the transition *into* `á` includes both. That is the honest cost of the letter.
+- **The accent is a keystroke of its own.** Typing `ó` on a Spanish board is two presses,
+  `´` then `o`, and both are recorded: `consultó` gives you `t´` and `´o` rather than one
+  blurred `tó`. The accent key is a real key on the layout, so those n-grams get the same
+  finger and roll analysis as any other pair — `´o` is a right-hand roll from the pinky.
+  Which characters split is decided by the layout, so `ñ` stays one press on Spanish while
+  `á` does not. Turn off **Time accents separately** in Settings to charge both presses to
+  the accented character instead, as versions before 0.3 did.
 
 ---
 

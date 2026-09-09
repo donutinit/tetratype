@@ -3,10 +3,11 @@
  *
  * The timestamp of a character is the `keydown` that produced it, not the
  * `beforeinput` that reports it, because keydown is when your finger actually
- * moved. For a dead key the producing keydown is the second press, so the time
- * to type `á` correctly includes the accent.
+ * moved. A dead key takes two presses, and both are kept: the accent is fed to
+ * the run tracker as a keystroke of its own, timed at the press that made it.
  */
 
+import { getLayout } from '../core/layout';
 import { type Metrics, createMetrics, recordConfusion, recordKeystroke } from '../core/metrics';
 import { RunTracker } from '../core/run';
 import { isSingleGrapheme, normalize } from '../core/text';
@@ -15,6 +16,9 @@ import { activeWord, countWrongLetters, expectedChar, isTypingInput } from './mo
 
 /** How stale a pending keydown may be before we stop trusting the pairing. */
 const KEYDOWN_FRESHNESS_MS = 150;
+
+/** `KeyboardEvent.key` for an accent key that modifies the next character. */
+const DEAD_KEY = 'Dead';
 
 /** Idle time that ends a session, so warm-up and fatigue can be separated. */
 const SESSION_IDLE_MS = 5 * 60 * 1000;
@@ -57,6 +61,8 @@ export interface KeyDownLike {
   timeStamp: number;
   isComposing: boolean;
   repeat: boolean;
+  /** `KeyboardEvent.key`; optional so a test can describe a plain keypress. */
+  key?: string;
 }
 
 export interface BeforeInputLike {
@@ -95,6 +101,8 @@ export class Capture {
 
   /** Timestamp of the most recent keydown, used to date the character it made. */
   private pendingKeyAt = -1;
+  /** Timestamp of a dead-key press waiting for the letter it will accent. */
+  private deadKeyAt = -1;
   private composing = false;
   /** Wrong letters seen in the active word at the previous keystroke. */
   private wrongLetters = 0;
@@ -136,6 +144,7 @@ export class Capture {
     this.emit(this.tracker.flush('blur'));
     this.resolvePending(null);
     this.pendingKeyAt = -1;
+    this.deadKeyAt = -1;
     this.previousAt = -1;
     this.previousExpected = null;
     this.composing = false;
@@ -155,12 +164,18 @@ export class Capture {
 
   handleKeyDown(event: KeyDownLike): void {
     if (!this.settings.capture || !isTypingInput(event.target)) return;
-    if (event.isComposing) return;
     if (event.repeat) {
       // Held keys are not typing; the intervals they produce are meaningless.
       this.breakRun();
       return;
     }
+    if (this.isDeadKey(event.key)) {
+      // An accent key emits no text of its own, so note when it was pressed:
+      // the letter it composes will need it back.
+      this.deadKeyAt = event.timeStamp;
+    }
+    // Recorded even mid-composition: for a dead key the character comes from
+    // the second press, and that one arrives with the composition still open.
     this.pendingKeyAt = event.timeStamp;
   }
 
@@ -197,6 +212,9 @@ export class Capture {
 
   handleCompositionStart(): void {
     this.composing = true;
+    // Layouts that route their dead keys through composition never report a
+    // `Dead` key, so the press that opened the composition is the accent.
+    if (this.deadKeyAt < 0) this.deadKeyAt = this.pendingKeyAt;
   }
 
   handleCompositionEnd(event: CompositionLike): void {
@@ -208,6 +226,11 @@ export class Capture {
   /** Records one produced character, or breaks the run if it is not one. */
   private commitText(raw: string, eventTime: number): void {
     const text = normalize(raw);
+    // The accent belongs to this character or to nothing: whatever happens
+    // below, it must not be carried over to a later one.
+    const deadAt = this.deadKeyAt;
+    this.deadKeyAt = -1;
+
     if (text === '' || !isSingleGrapheme(text)) {
       // Zero or several characters at once: not a single keystroke.
       this.emit(this.tracker.feed({ kind: 'break', reason: 'nontext', t: eventTime }));
@@ -247,7 +270,45 @@ export class Capture {
       this.syncErrors(t);
     }
 
+    const dead = this.deadKeyPress(text, t, deadAt);
+    if (dead) {
+      // Two presses made this character, so the run gets two keystrokes: the
+      // accent, then the letter. `´o` is a real transition and now it is timed.
+      this.emit(this.tracker.feed({ kind: 'char', char: dead.accent, t: dead.at }));
+      this.emit(this.tracker.feed({ kind: 'char', char: dead.base, t }));
+      return;
+    }
+
     this.emit(this.tracker.feed({ kind: 'char', char: text, t }));
+  }
+
+  /**
+   * True for a keypress that starts an accent rather than producing a letter.
+   *
+   * Browsers report a dead key as `Dead` on most platforms, but some name the
+   * accent it carries instead, so the layout's own accent keys count too. A
+   * false positive is harmless: the next character decides whether it is used.
+   */
+  private isDeadKey(key: string | undefined): boolean {
+    if (key === undefined) return false;
+    return key === DEAD_KEY || getLayout(this.settings.layout).deadKeys.has(key);
+  }
+
+  /**
+   * Splits a character into the accent press and the letter press behind it.
+   *
+   * The layout decides: `ó` is a dead key and a vowel on a Spanish board, while
+   * a layout with a key of its own for it costs one press and stays one. Null
+   * whenever no accent key is waiting, which is every ordinary keystroke.
+   */
+  private deadKeyPress(
+    char: string,
+    t: number,
+    deadAt: number,
+  ): { accent: string; base: string; at: number } | null {
+    if (!this.settings.splitDeadKeys || deadAt < 0 || deadAt >= t) return null;
+    const parts = getLayout(this.settings.layout).composed.get(char);
+    return parts ? { accent: parts[0], base: parts[1], at: deadAt } : null;
   }
 
   /** Folds one keystroke into the accuracy counters. */

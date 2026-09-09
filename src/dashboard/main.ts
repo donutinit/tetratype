@@ -532,6 +532,12 @@ function settingControls(): SettingControl[] {
       help: 'Discards a keystroke Monkeytype flags as wrong, plus its hesitation.',
       input: `<input type="checkbox" data-setting="detectErrors" ${settings.detectErrors ? 'checked' : ''} />`,
     },
+    {
+      key: 'splitDeadKeys',
+      label: 'Time accents separately',
+      help: 'Counts the dead key as its own press, so ó is measured as ´ then o.',
+      input: `<input type="checkbox" data-setting="splitDeadKeys" ${settings.splitDeadKeys ? 'checked' : ''} />`,
+    },
   ];
 }
 

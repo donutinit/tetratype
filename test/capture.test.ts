@@ -64,6 +64,17 @@ function press(
   });
 }
 
+/** The keydown an accent key produces: a real press with no text behind it. */
+function pressDead(capture: Capture, t: number, target: EventTarget = input): void {
+  capture.handleKeyDown({
+    target,
+    timeStamp: t,
+    isComposing: false,
+    repeat: false,
+    key: 'Dead',
+  });
+}
+
 function grams(): string[] {
   return samples.map((s) => s.gram).sort();
 }
@@ -226,6 +237,73 @@ describe('Capture', () => {
     press(capture, 's', 1300);
     capture.breakRun();
     expect(grams()).toContain('más');
+  });
+
+  test('an accent key is a keystroke of its own', () => {
+    const capture = makeCapture();
+    // `consultó`: the accent and the vowel are two presses, and both are timed.
+    press(capture, 't', 1000);
+    pressDead(capture, 1100);
+    press(capture, 'ó', 1250);
+    capture.breakRun();
+
+    expect(grams()).toEqual(['t´', 't´o', '´o']);
+    expect(samples.find((s) => s.gram === 't´o')?.transitions).toEqual([100, 150]);
+    expect(samples.find((s) => s.gram === '´o')?.total).toBe(150);
+  });
+
+  test('a dead key routed through composition is split too', () => {
+    const capture = makeCapture();
+    press(capture, 't', 1000);
+    // No `Dead` key reported: the accent only shows up as a composition start.
+    capture.handleKeyDown({ target: input, timeStamp: 1100, isComposing: false, repeat: false });
+    capture.handleCompositionStart();
+    // The vowel lands while the composition is still open.
+    capture.handleKeyDown({ target: input, timeStamp: 1250, isComposing: true, repeat: false });
+    capture.handleCompositionEnd({ target: input, timeStamp: 1255, data: 'ó' });
+    capture.breakRun();
+
+    expect(grams()).toEqual(['t´', 't´o', '´o']);
+    expect(samples.find((s) => s.gram === 't´o')?.transitions).toEqual([100, 150]);
+  });
+
+  test('the accent is dropped with the letter when the letter is wrong', () => {
+    const capture = makeCapture();
+    const word = document.querySelector('#words .word') as HTMLElement;
+    word.innerHTML = '<letter>t</letter><letter>u</letter>';
+    press(capture, 't', 1000);
+    pressDead(capture, 1100);
+    press(capture, 'ó', 1250);
+    capture.breakRun();
+    expect(grams()).toEqual([]);
+  });
+
+  test('an accent left over from an unrelated press is not reused', () => {
+    const capture = makeCapture();
+    pressDead(capture, 1000);
+    // The accent press belongs to `é`; the `ó` after it arrived with none.
+    press(capture, 'é', 1100);
+    press(capture, 'ó', 1200);
+    capture.breakRun();
+    expect(grams()).toEqual(['eó', '´e', '´eó']);
+  });
+
+  test('a layout with no dead keys keeps the character whole', () => {
+    const capture = makeCapture({ layout: 'qwerty-us' });
+    press(capture, 'm', 1000);
+    pressDead(capture, 1100);
+    press(capture, 'á', 1200);
+    capture.breakRun();
+    expect(grams()).toEqual(['má']);
+  });
+
+  test('splitting accents can be turned off', () => {
+    const capture = makeCapture({ splitDeadKeys: false });
+    press(capture, 'm', 1000);
+    pressDead(capture, 1100);
+    press(capture, 'á', 1200);
+    capture.breakRun();
+    expect(grams()).toEqual(['má']);
   });
 
   test('composes an accent delivered as a separate combining mark', () => {

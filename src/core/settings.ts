@@ -11,6 +11,14 @@ export interface Settings {
   /** Break the run when Monkeytype marks a character as incorrect. */
   detectErrors: boolean;
   /**
+   * Count a dead-key accent as the separate keystroke it is.
+   *
+   * On a Spanish board `ó` costs two presses, `´` then `o`. With this on the
+   * n-grams show both, so the accent transition is measured instead of being
+   * buried inside one character.
+   */
+  splitDeadKeys: boolean;
+  /**
    * Read the character the test is waiting for, so mistakes can be named.
    *
    * This is the one thing Tetratype reads from the page beyond your own
@@ -34,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   breakOnPauseMs: 1000,
   includeSpaces: false,
   detectErrors: true,
+  splitDeadKeys: true,
   trackAccuracy: true,
   layout: 'qwerty-es',
   recentWindow: 40,
@@ -70,6 +79,7 @@ export function normalizeSettings(input: unknown): Settings {
     capture: bool(raw.capture, DEFAULT_SETTINGS.capture),
     includeSpaces: bool(raw.includeSpaces, DEFAULT_SETTINGS.includeSpaces),
     detectErrors: bool(raw.detectErrors, DEFAULT_SETTINGS.detectErrors),
+    splitDeadKeys: bool(raw.splitDeadKeys, DEFAULT_SETTINGS.splitDeadKeys),
     trackAccuracy: bool(raw.trackAccuracy, DEFAULT_SETTINGS.trackAccuracy),
     layout: LAYOUT_IDS.includes(raw.layout as LayoutId)
       ? (raw.layout as LayoutId)

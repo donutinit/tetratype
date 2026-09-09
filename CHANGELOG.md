@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Accents are timed as the two presses they are.** A dead key is captured as a keystroke
+  of its own, so `consultó` yields `t´` and `´o` instead of one `tó` that hid the accent
+  inside the letter. The layout decides which characters split, and because the accent key
+  is a key like any other the new n-grams get the usual finger, roll and stretch analysis.
+- **Time accents separately** setting, on by default, to go back to charging both presses
+  to the accented character.
+
+### Fixed
+
+- A dead key routed through composition no longer loses the character when more than 150 ms
+  separates the accent from the letter: the press that produces it is now the one timed.
+
 ## [0.2.1] — 2026-09-06
 
 ### Added
