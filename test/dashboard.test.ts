@@ -1,6 +1,6 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { beforeAll, describe, expect, test } from 'vitest';
 import { createMetrics, recordConfusion, recordKeystroke } from '../src/core/metrics';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { applySample, createStore } from '../src/core/store';
@@ -72,7 +72,7 @@ function seedMetrics() {
 
 /** Mounts the real dashboard markup and a minimal extension runtime. */
 function mountDashboard(): void {
-  const html = readFileSync(join(import.meta.dir, '../src/dashboard/index.html'), 'utf8');
+  const html = readFileSync(join(import.meta.dirname, '../src/dashboard/index.html'), 'utf8');
   const body = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'));
   document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/g, '');
 

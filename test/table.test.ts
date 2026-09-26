@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { type NgramStats, computeAllStats, computeBaseline } from '../src/core/stats';
 import { applySample, createStore } from '../src/core/store';
 import type { NgramSample } from '../src/core/types';

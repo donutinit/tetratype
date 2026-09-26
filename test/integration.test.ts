@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { Capture } from '../src/content/capture';
 import { buildExport, parseExport, toCsv } from '../src/core/serialize';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/settings';

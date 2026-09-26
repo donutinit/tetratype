@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { activeWord, countWrongLetters, isTypingInput } from '../src/content/monkeytype';
 
 /** Renders a minimal stand-in for Monkeytype's typing test markup. */

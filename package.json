@@ -6,24 +6,26 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "bun": ">=1.1.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
-    "build": "bun run scripts/build.ts",
-    "build:xpi": "bun run scripts/build.ts --xpi",
-    "dev": "bun run scripts/build.ts --watch",
-    "test": "bun test",
+    "build": "node scripts/build.ts",
+    "build:xpi": "node scripts/build.ts --xpi",
+    "dev": "node scripts/build.ts --watch",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "check": "bun run typecheck && bun run lint && bun test && bun run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@happy-dom/global-registrator": "^20.14.0",
-    "@types/bun": "^1.1.14",
-    "@types/firefox-webext-browser": "^120.0.4",
-    "typescript": "^5.7.2"
-  },
-  "trustedDependencies": ["@biomejs/biome"]
+    "@biomejs/biome": "1.9.4",
+    "@happy-dom/global-registrator": "20.14.0",
+    "@types/firefox-webext-browser": "120.0.5",
+    "@types/node": "22.20.4",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7",
+    "web-ext": "10.7.0"
+  }
 }

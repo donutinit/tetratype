@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { confusionRanking } from '../src/core/insights';
 import { createMetrics, recordConfusion, recordKeystroke } from '../src/core/metrics';
 import { buildReport } from '../src/core/report';
@@ -70,7 +70,7 @@ describe('buildReport', () => {
   const text = report();
 
   test('opens with a header naming the layout and the threshold', () => {
-    expect(text).toStartWith('# Tetratype analysis');
+    expect(text).toMatch(/^# Tetratype analysis/);
     expect(text).toContain('QWERTY (Spanish)');
     expect(text).toContain('at least 5 samples');
   });

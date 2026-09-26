@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { extractNgrams, gramKey } from '../src/core/ngram';
 import type { Keystroke } from '../src/core/types';
 

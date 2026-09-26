@@ -20,28 +20,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version-file: .nvmrc
+          cache: npm
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Typecheck
-        run: bun run typecheck
+        run: npm run typecheck
 
       - name: Lint and format check
-        run: bun run lint
+        run: npm run lint
 
       - name: Test
-        run: bun test
+        run: npm test
 
       - name: Build extension
-        run: bun run build
+        run: npm run build
 
       - name: Validate manifest with web-ext
-        run: bunx --bun web-ext lint --source-dir dist --self-hosted
+        run: npx --no-install web-ext lint --source-dir dist --self-hosted
 
       - name: Upload unpacked extension
         uses: actions/upload-artifact@v4

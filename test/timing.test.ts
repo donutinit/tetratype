@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { COARSE_TIMER_MS, isCoarse, probeTimerResolution } from '../src/core/timing';
 
 /** A clock that advances in fixed steps, like a rounded browser timer. */

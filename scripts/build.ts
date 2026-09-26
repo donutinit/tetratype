@@ -6,8 +6,10 @@
  * on `import` at runtime.
  */
 
-import { mkdir, readdir, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { copyFile, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { build as esbuild } from 'esbuild';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = join(ROOT, 'src');
@@ -34,31 +36,31 @@ const minify = !args.has('--no-minify');
 
 async function copyStatic(): Promise<void> {
   for (const file of STATIC_FILES) {
-    await Bun.write(join(DIST, file.to), Bun.file(join(SRC, file.from)));
+    await copyFile(join(SRC, file.from), join(DIST, file.to));
   }
   await mkdir(join(DIST, 'icons'), { recursive: true });
   for (const icon of await readdir(join(SRC, 'icons'))) {
-    await Bun.write(join(DIST, 'icons', icon), Bun.file(join(SRC, 'icons', icon)));
+    await copyFile(join(SRC, 'icons', icon), join(DIST, 'icons', icon));
   }
 }
 
 async function bundle(): Promise<number> {
   let bytes = 0;
   for (const entry of ENTRIES) {
-    const result = await Bun.build({
-      entrypoints: [join(SRC, entry.from)],
-      outdir: DIST,
-      target: 'browser',
+    const result = await esbuild({
+      entryPoints: [join(SRC, entry.from)],
+      outfile: join(DIST, entry.to),
+      bundle: true,
+      platform: 'browser',
       format: 'iife',
       minify,
-      sourcemap: 'none',
-      naming: { entry: entry.to },
-    });
-    if (!result.success) {
-      for (const log of result.logs) console.error(log);
+      sourcemap: false,
+      metafile: true,
+      logLevel: 'error',
+    }).catch(() => {
       throw new Error(`Failed to bundle ${entry.from}`);
-    }
-    for (const artifact of result.outputs) bytes += artifact.size;
+    });
+    for (const output of Object.values(result.metafile.outputs)) bytes += output.bytes;
   }
   return bytes;
 }
@@ -75,7 +77,9 @@ async function build(): Promise<void> {
 
 /** Reads the version the manifest declares, so artefact names match the build. */
 async function manifestVersion(): Promise<string> {
-  const manifest = (await Bun.file(join(SRC, 'manifest.json')).json()) as { version: string };
+  const manifest = JSON.parse(await readFile(join(SRC, 'manifest.json'), 'utf8')) as {
+    version: string;
+  };
   return manifest.version;
 }
 
@@ -95,14 +99,18 @@ async function pack(): Promise<void> {
   const zip = join(out, `tetratype-${version}.zip`);
   await Promise.all([rm(xpi, { force: true }), rm(zip, { force: true })]);
 
-  const proc = Bun.spawn(['zip', '-r', '-q', '-X', xpi, '.'], {
-    cwd: DIST,
-    stdio: ['ignore', 'inherit', 'inherit'],
+  const code = await new Promise<number | null>((resolve) => {
+    spawn('zip', ['-r', '-q', '-X', xpi, '.'], {
+      cwd: DIST,
+      stdio: ['ignore', 'inherit', 'inherit'],
+    })
+      .on('error', () => resolve(null))
+      .on('close', resolve);
   });
-  if ((await proc.exited) !== 0) throw new Error('zip failed (is the `zip` command installed?)');
+  if (code !== 0) throw new Error('zip failed (is the `zip` command installed?)');
 
-  await Bun.write(zip, Bun.file(xpi));
-  const size = (Bun.file(xpi).size / 1024).toFixed(1);
+  await copyFile(xpi, zip);
+  const size = ((await stat(xpi)).size / 1024).toFixed(1);
   console.log(`packaged ${xpi} (${size} kB)`);
   console.log(`packaged ${zip}`);
 }

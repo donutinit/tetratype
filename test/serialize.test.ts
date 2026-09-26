@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import {
   EXPORT_FORMAT,
   ImportError,
@@ -206,7 +206,7 @@ describe('toCsv', () => {
 
   test('emits a header and one row per n-gram', () => {
     const lines = toCsv(stats).trim().split('\n');
-    expect(lines[0]).toStartWith('n,ngram,samples,median_ms');
+    expect(lines[0]).toMatch(/^n,ngram,samples,median_ms/);
     expect(lines).toHaveLength(stats.length + 1);
   });
 

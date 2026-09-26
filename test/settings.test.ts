@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { DEFAULT_SETTINGS, normalizeSettings } from '../src/core/settings';
 
 describe('normalizeSettings', () => {

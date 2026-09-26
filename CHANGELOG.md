@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Built with Node and npm instead of Bun.** Tests run on Vitest, the bundle is built by
+  esbuild, and every dependency is pinned to an exact version with install scripts disabled.
+  Contributors need Node.js 22.18 or newer; `npm ci && npm run check` replaces the Bun commands.
+
 ### Added
 
 - **Accents are timed as the two presses they are.** A dead key is captured as a keystroke

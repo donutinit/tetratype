@@ -174,13 +174,13 @@ loaded until you close the browser.
 Either download from the
 [latest release](https://github.com/donutinit/tetratype/releases/latest) — `tetratype-<version>.zip`
 to unpack, or `tetratype-<version>.xpi` to install directly — or build it yourself with
-[Bun](https://bun.sh):
+[Node.js](https://nodejs.org) 22.18 or newer:
 
 ```bash
 git clone https://github.com/donutinit/tetratype.git
 cd tetratype
-bun install
-bun run build
+npm ci
+npm run build
 ```
 
 Then, in Firefox or LibreWolf:
@@ -231,7 +231,7 @@ signing silently and the release is unchanged.
 Signing does upload your code to Mozilla for review by their automated scanner, even on the
 `unlisted` channel. It is not publication, but it is not nothing — decide accordingly.
 
-Locally, `bun run build:xpi` produces both files in `web-ext-artifacts/`.
+Locally, `npm run build:xpi` produces both files in `web-ext-artifacts/`.
 
 ---
 
@@ -566,16 +566,19 @@ buffers and is far larger with nothing extra a model can use.
 ## Development
 
 ```bash
-bun install
-bun run dev        # rebuild dist/ on change
-bun test           # 276 tests
-bun run typecheck  # tsc --noEmit
-bun run lint       # biome
-bun run format     # biome --write
-bun run build      # unpacked extension into dist/
-bun run build:xpi  # plus .xpi and .zip in web-ext-artifacts/
-bun run check      # everything CI runs
+npm ci
+npm run dev        # rebuild dist/ on change
+npm test           # 287 tests (vitest)
+npm run typecheck  # tsc --noEmit
+npm run lint       # biome
+npm run format     # biome --write
+npm run build      # unpacked extension into dist/
+npm run build:xpi  # plus .xpi and .zip in web-ext-artifacts/
+npm run check      # everything CI runs
 ```
+
+Dependencies are pinned to exact versions and `.npmrc` disables install scripts. Install with
+`npm ci`, never `npm install`, unless you are deliberately adding or upgrading a package.
 
 ### Layout
 

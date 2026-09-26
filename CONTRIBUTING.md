@@ -6,17 +6,17 @@ review when they stay focused.
 ## Getting set up
 
 ```bash
-bun install
-bun run check   # typecheck + lint + tests + build
+npm ci
+npm run check   # typecheck + lint + tests + build
 ```
 
 Load `dist/manifest.json` through `about:debugging#/runtime/this-firefox` to try your
-changes. `bun run dev` rebuilds on save; reload the add-on from the same page to pick the
+changes. `npm run dev` rebuilds on save; reload the add-on from the same page to pick the
 new build up.
 
 ## Before opening a pull request
 
-Run `bun run check`. CI runs exactly that, plus `web-ext lint` against the built extension.
+Run `npm run check`. CI runs exactly that, plus `web-ext lint` against the built extension.
 
 ## What the review will look for
 

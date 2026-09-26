@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { type RunEvent, RunTracker } from '../src/core/run';
 import type { NgramSample } from '../src/core/types';
 
